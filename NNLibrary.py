@@ -4,6 +4,8 @@
 # Allo stesso tempo questo serve anche per Fare in modo che la rete neurale approcci più tipi di
 # problemi (regressione, classificazione, classificazione multipla).
 
+# Classe inizializzazione
+
 class NeuralNetwork:
     name = "NN From Scratch"
 
