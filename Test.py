@@ -4,9 +4,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from NeuralNetworks import NeuralNetworks
 
-dataMeteo = pd.read_excel(r"C:\Users\39328\OneDrive\Desktop\Davide\Velleità\Meteo_Italia.xlsx")
-dataMeteo = dataMeteo[['Wind Speed (km/h)', 'Humidity (%)', 'Average Temp']].set_axis(['X1', 'X2', 'Pred'],
-                                                                                      axis = 1)
+dataMeteo = pd.read_excel(r"C:\Users\39328\OneDrive\Desktop\Davide\Velleità\Meteo_Data.xlsx")
+dataMeteo = dataMeteo[['Wind Speed (km/h)', 'Humidity (%)', 'lat', 'lng', 'elevation', 'Month', 'Average Temp']].set_axis(['X1',
+                                                                        'X2', 'X3', 'X4', 'X5', 'X6', 'Pred'], axis = 1)
 
 df = train_test_split(dataMeteo, test_size=0.20)
 
@@ -15,19 +15,19 @@ testSet = df[1]
 
 # get Structure
 
-NNt = NeuralNetworks.Regression(3, 1, 5)
+NNt = NeuralNetworks.Regression(7, 2, 9)
 NNFit = NNt.fit(trainSet, 'Pred', 0.005, decreasingRate = 0.99)
 
 prediction = NNt.getPredictions(NNFit, testSet, 'Pred')
 
 # Regressione Lineare
 
-X = np.array(trainSet[['X1', 'X2']])
+X = np.array(trainSet[['X1', 'X2', 'X3', 'X4', 'X5', 'X6']])
 Y = np.array(trainSet['Pred'])
 
 reg = LinearRegression().fit(X, Y)
 
-f = reg.predict(np.array(testSet[['X1', 'X2']]))
+f = reg.predict(np.array(testSet[['X1', 'X2', 'X3', 'X4', 'X5', 'X6']]))
 
 # Mettiamo insieme
 
