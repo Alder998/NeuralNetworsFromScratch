@@ -6,15 +6,16 @@
 
 # Classe inizializzazione
 
-class NeuralNetwork:
+class Regression:
     name = "NN From Scratch"
 
     def __init__(self, inputLayer, numberOfLayers, numberOfNodes):
         self.numberOfLayers = numberOfLayers
         self.numberOfNodes = numberOfNodes
         self.inputLayer = inputLayer
+        pass
 
-    # Metodo per ottenere la struttura della Rete Neurale
+    # Metodo per ottenere la struttura della Rete Neurale per un problema di regressione
 
     def structure (self):
 
@@ -72,7 +73,7 @@ class NeuralNetwork:
         return pd.concat([betaRandom, interceptRandom, wRandom, functionIntRandom], axis=0)
 
 
-    def getPredictions(self, parameterVector, data, dependent, numberOfLayers, numberOfNodes):
+    def getPredictions(self, parameterVector, data, dependent):
 
         import pandas as pd
         import numpy as np
@@ -88,7 +89,7 @@ class NeuralNetwork:
 
         functionListNode = list()
         nodeO = 0
-        while nodeO < numberOfNodes:
+        while nodeO < self.numberOfNodes:
             regrWeights = (wRandom[nodeO:nodeO + len(data.columns) - 1])
             singleFunction = (interceptRandom[nodeO] + (regrWeights * data.loc[:, data.columns != dependent]))
             reLuFunction = pd.DataFrame(np.where(singleFunction > 0, singleFunction, 0)).set_axis(
@@ -132,9 +133,6 @@ class NeuralNetwork:
             interceptRandom = np.array(b['value'][(b['parameter'].str.contains('w0')) &
                                                   (b['parameter'].str.contains(variable[1]))])
 
-            betaRandom = np.array(b['value'][(b['parameter'].str.contains('B')) & (~b['parameter'].str.contains('B0'))])
-            functionIntRandom = np.array(b['value'][b['parameter'].str.contains('B0')])
-
             # Costruiamo ogni singolo Nodo usando i dati random e una funzione non lineare reLu
 
             singleFunction = (interceptRandom[0] + (wRandom * data.loc[:, data.columns != 'Pred']))
@@ -151,8 +149,6 @@ class NeuralNetwork:
             interceptRandom = np.array(b['value'][(b['parameter'].str.contains('w0')) &
                                                   (b['parameter'].str.contains(variable[2]))])
 
-            betaRandom = np.array(b['value'][(b['parameter'].str.contains('B')) & (~b['parameter'].str.contains('B0'))])
-            functionIntRandom = np.array(b['value'][b['parameter'].str.contains('B0')])
 
             singleFunction = (interceptRandom[0] + (wRandom * data.loc[:, data.columns != 'Pred']))
             reLuFunction = pd.DataFrame(np.where(singleFunction > 0, 1, 0)).set_axis(
@@ -168,9 +164,6 @@ class NeuralNetwork:
             interceptRandom = np.array(b['value'][(b['parameter'].str.contains('w0')) &
                                                   (b['parameter'].str.contains(variable[1]))])
 
-            betaRandom = np.array(b['value'][(b['parameter'].str.contains('B')) & (~b['parameter'].str.contains('B0'))])
-            functionIntRandom = np.array(b['value'][b['parameter'].str.contains('B0')])
-
             singleFunction = (interceptRandom[0] + (wRandom * data.loc[:, data.columns != 'Pred']))
             toReturn = data.loc[:, data.columns != 'Pred']
             reLuFunction = pd.DataFrame(np.where(singleFunction > 0, toReturn, 0)).set_axis(
@@ -178,12 +171,11 @@ class NeuralNetwork:
 
             return (np.array(reLuFunction)).flatten().mean()
 
-    def fit(self, data, dependent, leaningRate, analytics=False):
+
+    def fit(self, data, dependent, leaningRate, decreasingRate=0.99, analytics=False):
 
         import pandas as pd
-        import numpy as np
         import matplotlib.pyplot as plt
-        import random
 
         layers = self.numberOfLayers
         nodes = self.numberOfNodes
@@ -199,12 +191,12 @@ class NeuralNetwork:
 
         minimizationPath = list()
         weights = pV
-        MSEBefore = ((self.getPredictions(pV, data, dependent, layers, nodes) - data[dependent]) ** 2).mean()
+        MSEBefore = ((self.getPredictions(pV, data, dependent) - data[dependent]) ** 2).mean()
         MSE = 0
         while (trainingEpochs < max_iter) & (MSEBefore > MSE):
 
             MSEBefore = (
-                    (self.getPredictions(weights, data, dependent, layers, nodes) - data[dependent]) ** 2).mean()
+                    (self.getPredictions(weights, data, dependent) - data[dependent]) ** 2).mean()
 
             gradient = list()
             for param in range(len(weights['parameter'])):
@@ -215,7 +207,7 @@ class NeuralNetwork:
                 w_new = pd.concat([weights['parameter'], w_old + moveGr], axis=1).set_axis(['parameter', 'value'],
                                                                                            axis=1)
 
-            MSE = ((self.getPredictions(w_new, data, dependent, layers, nodes) - data[dependent]) ** 2).mean()
+            MSE = ((self.getPredictions(w_new, data, dependent) - data[dependent]) ** 2).mean()
 
             # print(gradient)
 
@@ -223,7 +215,7 @@ class NeuralNetwork:
 
             weights = w_new
 
-            leaningRate = leaningRate * 0.99
+            leaningRate = leaningRate * decreasingRate
 
             print('Training Epochs:', trainingEpochs)
             print('Learning Rate', leaningRate)
@@ -233,8 +225,8 @@ class NeuralNetwork:
 
             trainingEpochs += 1
 
-        predictionF = pd.concat([self.getPredictions(weights, data, 'Pred', layers, nodes),
-                                 self.getPredictions(pV, data, 'Pred', layers, nodes), data['Pred']],
+        predictionF = pd.concat([self.getPredictions(weights, data, 'Pred'),
+                                 self.getPredictions(pV, data, 'Pred'), data['Pred']],
                                 axis=1).set_axis(['final Weights Prediction', 'Starting Weights', 'True Value'], axis=1)
         # print(predictionF)
 
@@ -254,3 +246,4 @@ class NeuralNetwork:
             plt.show()
 
         return weights
+
