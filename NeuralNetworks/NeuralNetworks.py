@@ -55,13 +55,13 @@ class Regression:
         # print('Total Number of Parameters to estimate:', len(beta) + len(interceptsW) + len(weights) + 1)
         # print('\n')
 
-        wRandom = pd.concat([pd.Series(weights), pd.Series(np.random.uniform(size=len(weights)))],
+        wRandom = pd.concat([pd.Series(weights), pd.Series(np.random.uniform(size=len(weights))*0.5)],
                             axis=1).set_axis(['parameter', 'value'], axis=1)
-        interceptRandom = pd.concat([pd.Series(interceptsW), pd.Series(np.random.uniform(size=len(interceptsW)))],
+        interceptRandom = pd.concat([pd.Series(interceptsW), pd.Series(np.random.uniform(size=len(interceptsW))*0.5)],
                                     axis=1).set_axis(['parameter', 'value'], axis=1)
-        betaRandom = pd.concat([pd.Series(beta), pd.Series(np.random.uniform(size=len(beta)))],
+        betaRandom = pd.concat([pd.Series(beta), pd.Series(np.random.uniform(size=len(beta))*0.5)],
                                axis=1).set_axis(['parameter', 'value'], axis=1)
-        functionIntRandom = pd.concat([pd.Series(neuralIntercept), pd.Series(random.random() * random.choice([-1, 1]))],
+        functionIntRandom = pd.concat([pd.Series(neuralIntercept), pd.Series(random.random()*0.5)],
                                       axis=1).set_axis(['parameter', 'value'], axis=1)
 
         # L'output va interpretato così:
@@ -90,7 +90,7 @@ class Regression:
         functionListNode = list()
         nodeO = 0
         while nodeO < self.numberOfNodes:
-            regrWeights = (wRandom[nodeO:nodeO + len(data.columns) - 1])
+            regrWeights = (wRandom[(len(data.columns)-1)*nodeO : ((len(data.columns)-1)*nodeO + (len(data.columns)-1))])
             singleFunction = (interceptRandom[nodeO] + (regrWeights * data.loc[:, data.columns != dependent]))
             reLuFunction = pd.DataFrame(np.where(singleFunction > 0, singleFunction, 0)).set_axis(
                 data.loc[:, data.columns != dependent].columns, axis=1)
@@ -189,6 +189,8 @@ class Regression:
         trainingEpochs = 1
         max_iter = 20000
 
+        lRControl = leaningRate
+
         minimizationPath = list()
         weights = pV
         MSEBefore = ((self.getPredictions(pV, data, dependent) - data[dependent]) ** 2).mean()
@@ -215,7 +217,7 @@ class Regression:
 
             weights = w_new
 
-            leaningRate = leaningRate * decreasingRate
+            leaningRate = max((leaningRate * decreasingRate), lRControl*0.05)
 
             print('Training Epochs:', trainingEpochs)
             print('Learning Rate', leaningRate)
