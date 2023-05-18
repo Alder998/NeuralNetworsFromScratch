@@ -17,7 +17,7 @@ class Regression:
 
     # Metodo per ottenere la struttura della Rete Neurale per un problema di regressione
 
-    def structure (self):
+    def structure(self):
 
         import pandas as pd
         import numpy as np
@@ -39,13 +39,13 @@ class Regression:
             for node in range(1, numberOfNodes + 1):
 
                 b = 'B' + str(node)
-                w0 = 'w0' + str(node)
+                w0 = 'w0' + str(node) + '_' + str(layer)
 
                 beta.append(b)
                 interceptsW.append(w0)
 
                 for parameter in range(1, self.inputLayer):
-                    w = 'W' + str(node) + str(parameter)
+                    w = 'W' + str(node) + str(parameter) + '_' + str(layer)
 
                     weights.append(w)
 
@@ -55,13 +55,13 @@ class Regression:
         # print('Total Number of Parameters to estimate:', len(beta) + len(interceptsW) + len(weights) + 1)
         # print('\n')
 
-        wRandom = pd.concat([pd.Series(weights), pd.Series(np.random.uniform(size=len(weights))*0.5)],
+        wRandom = pd.concat([pd.Series(weights), pd.Series(np.random.uniform(size=len(weights)))],
                             axis=1).set_axis(['parameter', 'value'], axis=1)
-        interceptRandom = pd.concat([pd.Series(interceptsW), pd.Series(np.random.uniform(size=len(interceptsW))*0.5)],
+        interceptRandom = pd.concat([pd.Series(interceptsW), pd.Series(np.random.uniform(size=len(interceptsW)))],
                                     axis=1).set_axis(['parameter', 'value'], axis=1)
-        betaRandom = pd.concat([pd.Series(beta), pd.Series(np.random.uniform(size=len(beta))*0.5)],
+        betaRandom = pd.concat([pd.Series(beta), pd.Series(np.random.uniform(size=len(beta)))],
                                axis=1).set_axis(['parameter', 'value'], axis=1)
-        functionIntRandom = pd.concat([pd.Series(neuralIntercept), pd.Series(random.random()*0.5)],
+        functionIntRandom = pd.concat([pd.Series(neuralIntercept), pd.Series(random.random() * random.choice([-1, 1]))],
                                       axis=1).set_axis(['parameter', 'value'], axis=1)
 
         # L'output va interpretato così:
@@ -193,12 +193,12 @@ class Regression:
 
         minimizationPath = list()
         weights = pV
-        MSEBefore = ((self.getPredictions(pV, data, dependent) - data[dependent]) ** 2).mean()
+        MSEBefore = ((self.getPredictions2(pV, data, dependent) - data[dependent]) ** 2).mean()
         MSE = 0
         while (trainingEpochs < max_iter) & (MSEBefore > MSE):
 
             MSEBefore = (
-                    (self.getPredictions(weights, data, dependent) - data[dependent]) ** 2).mean()
+                    (self.getPredictions2(weights, data, dependent) - data[dependent]) ** 2).mean()
 
             gradient = list()
             for param in range(len(weights['parameter'])):
@@ -209,7 +209,7 @@ class Regression:
                 w_new = pd.concat([weights['parameter'], w_old + moveGr], axis=1).set_axis(['parameter', 'value'],
                                                                                            axis=1)
 
-            MSE = ((self.getPredictions(w_new, data, dependent) - data[dependent]) ** 2).mean()
+            MSE = ((self.getPredictions2(w_new, data, dependent) - data[dependent]) ** 2).mean()
 
             # print(gradient)
 
@@ -227,8 +227,8 @@ class Regression:
 
             trainingEpochs += 1
 
-        predictionF = pd.concat([self.getPredictions(weights, data, 'Pred'),
-                                 self.getPredictions(pV, data, 'Pred'), data['Pred']],
+        predictionF = pd.concat([self.getPredictions2(weights, data, 'Pred'),
+                                 self.getPredictions2(pV, data, 'Pred'), data['Pred']],
                                 axis=1).set_axis(['final Weights Prediction', 'Starting Weights', 'True Value'], axis=1)
         # print(predictionF)
 
@@ -248,4 +248,60 @@ class Regression:
             plt.show()
 
         return weights
+
+    def getPredictions2(self, parameterVector, data, dependent):
+
+        import pandas as pd
+        import numpy as np
+
+        b = parameterVector
+
+        wRandomSt = (b[b['parameter'].str.contains('W')])
+        interceptRandomSt = (b[b['parameter'].str.contains('w0')])
+        betaRandom = np.array(b['value'][(b['parameter'].str.contains('B')) & (~b['parameter'].str.contains('B0'))])
+        functionIntRandom = np.array(b['value'][b['parameter'].str.contains('B0')])
+
+        # Costruiamo ogni singolo Nodo usando i dati random e una funzione non lineare reLu
+
+        functionListNode = list()
+        layerO = 1
+        while layerO < self.numberOfLayers + 1:
+
+            wRandom = np.array(wRandomSt['value'][wRandomSt['parameter'].str.contains('_' + str(layerO))])
+            interceptRandom = np.array(
+                interceptRandomSt['value'][interceptRandomSt['parameter'].str.contains('_' + str(layerO))])
+
+            nodeO = 0
+            target = data.loc[:, data.columns != dependent]
+            while nodeO < self.numberOfNodes:
+                regrWeights = (
+                wRandom[nodeO * (len(data.columns) - 1): nodeO * (len(data.columns) - 1) + (len(data.columns) - 1)])
+                singleFunction = (interceptRandom[nodeO] + (regrWeights * target))
+                reLuFunction = pd.DataFrame(np.where(singleFunction > 0, singleFunction, 0)).set_axis(
+                    data.loc[:, data.columns != dependent].columns, axis=1)
+
+                target = reLuFunction
+
+                functionListNode.append(reLuFunction)
+
+                nodeO += 1
+
+            layerO += 1
+
+        functionListNode = functionListNode[len(functionListNode) - self.numberOfNodes: len(functionListNode)]
+
+        # Abbiamo costruito ogni singolo nodo, ora dobbiamo inserirlo nell'equazione generale
+
+        predList = list()
+        for SingleNodeValues in range(len(functionListNode)):
+            predList.append(betaRandom[SingleNodeValues] * functionListNode[SingleNodeValues])
+
+        equationResult = list()
+        for predictorEquationsResults in predList:
+            equationResult.append((functionIntRandom[0] + predictorEquationsResults).transpose().sum().transpose())
+
+        equationResult = pd.concat([series for series in equationResult], axis=1)
+        equationResult = equationResult.transpose().sum().transpose()
+
+        return equationResult
 

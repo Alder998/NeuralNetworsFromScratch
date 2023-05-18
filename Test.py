@@ -15,7 +15,7 @@ testSet = df[1]
 
 # get Structure
 
-NNt = NeuralNetworks.Regression(3, 1, 6)
+NNt = NeuralNetworks.Regression(3, 4, 5)
 NNFit = NNt.fit(trainSet, 'Pred', 0.005, decreasingRate = 0.99)
 
 prediction = NNt.getPredictions(NNFit, testSet, 'Pred')
