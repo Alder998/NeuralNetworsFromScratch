@@ -9,9 +9,8 @@
 class Regression:
     name = "NN From Scratch"
 
-    def __init__(self, inputLayer, numberOfLayers, numberOfNodes):
-        self.numberOfLayers = numberOfLayers
-        self.numberOfNodes = numberOfNodes
+    def __init__(self, inputLayer, shape):
+        self.shape = shape
         self.inputLayer = inputLayer
         pass
 
@@ -23,8 +22,9 @@ class Regression:
         import numpy as np
         import random
 
-        numberOfLayers = self.numberOfLayers
-        numberOfNodes = self.numberOfNodes
+        numberOfNodes = self.shape
+        numberOfLayers = len(numberOfNodes)
+        # numberOfNodes = numberOfNodes
 
         # Costruiamo i pesi
 
@@ -34,9 +34,10 @@ class Regression:
         neuralIntercept = ['B0']
         for layer in range(1, numberOfLayers + 1):
 
+            # Inizializza ogni layer con la relativa lunghezza
             # Definiamo le operazioni da svolgere nel singolo nodo
 
-            for node in range(1, numberOfNodes + 1):
+            for node in range(1, numberOfNodes[layer - 1] + 1):
 
                 b = 'B' + str(node)
                 w0 = 'w0' + str(node) + '_' + str(layer)
@@ -54,6 +55,11 @@ class Regression:
 
         # print('Total Number of Parameters to estimate:', len(beta) + len(interceptsW) + len(weights) + 1)
         # print('\n')
+
+        # Correggi beta perchè prenda il SOLO ULTIMO LAYER
+
+        lastLayerLength = numberOfNodes[len(numberOfNodes) - 1]
+        beta = beta[len(beta) - lastLayerLength: len(beta)]
 
         wRandom = pd.concat([pd.Series(weights), pd.Series(np.random.uniform(size=len(weights)))],
                             axis=1).set_axis(['parameter', 'value'], axis=1)
@@ -177,8 +183,8 @@ class Regression:
         import pandas as pd
         import matplotlib.pyplot as plt
 
-        layers = self.numberOfLayers
-        nodes = self.numberOfNodes
+        nodes = self.shape
+        layers = len(self.shape)
         inputL = self.inputLayer
 
         leaningRate = leaningRate
@@ -249,12 +255,16 @@ class Regression:
 
         return weights
 
-    def getPredictions2(self, parameterVector, data, dependent):
+
+    def getPredictions2 (self, parameterVector, data, dependent):
 
         import pandas as pd
         import numpy as np
 
         b = parameterVector
+
+        numberOfNodes = self.shape
+        numberOfLayers = len(numberOfNodes)
 
         wRandomSt = (b[b['parameter'].str.contains('W')])
         interceptRandomSt = (b[b['parameter'].str.contains('w0')])
@@ -265,7 +275,7 @@ class Regression:
 
         functionListNode = list()
         layerO = 1
-        while layerO < self.numberOfLayers + 1:
+        while layerO < numberOfLayers + 1:
 
             wRandom = np.array(wRandomSt['value'][wRandomSt['parameter'].str.contains('_' + str(layerO))])
             interceptRandom = np.array(
@@ -273,7 +283,11 @@ class Regression:
 
             nodeO = 0
             target = data.loc[:, data.columns != dependent]
-            while nodeO < self.numberOfNodes:
+            while nodeO < numberOfNodes[layerO - 1]:
+                # print(len(interceptRandom[nodeO]))
+
+                # print(interceptRandom[2])
+
                 regrWeights = (
                 wRandom[nodeO * (len(data.columns) - 1): nodeO * (len(data.columns) - 1) + (len(data.columns) - 1)])
                 singleFunction = (interceptRandom[nodeO] + (regrWeights * target))
@@ -288,7 +302,8 @@ class Regression:
 
             layerO += 1
 
-        functionListNode = functionListNode[len(functionListNode) - self.numberOfNodes: len(functionListNode)]
+        functionListNode = functionListNode[
+                           len(functionListNode) - numberOfNodes[len(numberOfNodes) - 1]: len(functionListNode)]
 
         # Abbiamo costruito ogni singolo nodo, ora dobbiamo inserirlo nell'equazione generale
 
@@ -304,4 +319,3 @@ class Regression:
         equationResult = equationResult.transpose().sum().transpose()
 
         return equationResult
-
