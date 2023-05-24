@@ -5,7 +5,7 @@ from sklearn.linear_model import LinearRegression
 from NeuralNetworks import NeuralNetworks
 
 dataMeteo = pd.read_excel(r"C:\Users\39328\OneDrive\Desktop\Davide\Velleità\Meteo_Data.xlsx")
-dataMeteo = dataMeteo[['elevation', 'Month', 'Average Temp', 'lat', 'lng']].set_axis(['X1',
+dataMeteo = dataMeteo[['elevation', 'Month', 'lat', 'lng', 'Average Temp']].set_axis(['X1',
                                                                     'X2', 'X3', 'X4', 'Pred'], axis = 1)
 
 df = train_test_split(dataMeteo, test_size=0.20)
@@ -13,12 +13,16 @@ df = train_test_split(dataMeteo, test_size=0.20)
 trainSet = df[0]
 testSet = df[1]
 
+print('\n')
+print('Train Size:', len(trainSet['X1']))
+print('\n')
+
 # get Structure
 
-structure = [9, 3]
+structure = [15, 10, 10]
 
 NNt = NeuralNetworks.Regression(5, structure)
-NNFit = NNt.fit(trainSet, 'Pred', 0.003, decreasingRate = 0.99)
+NNFit = NNt.fit(trainSet, 'Pred', 0.009, decreasingRate = 0.99)
 
 prediction = NNt.getPredictions2(NNFit, testSet, 'Pred')
 

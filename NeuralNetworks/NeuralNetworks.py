@@ -121,7 +121,7 @@ class Regression:
         return equationResult
 
 
-    def computeGradient(self, variable, data, numberOfLayers, numberOfNodes):
+    def computeGradient(self, variable, data):
 
         import pandas as pd
         import numpy as np
@@ -132,12 +132,24 @@ class Regression:
             return np.full(500000, 1).mean()
 
         if (variable[0] == 'B') & (variable != 'B0'):
+
+            pV1 = b[b['parameter'].str.contains('_')]
+            lisst = list()
+            for value in pV1['parameter']:
+                lisst.append(value[value.find('_') + 1: len(value)])
+            lisst = pd.Series(lisst).unique()
+            p = len(lisst)
+
+            # Filtra per il solo ultimo layer
+
+            b = b[b['parameter'].str.contains('_' + str(p))]
+
             wRandom = np.array(
-                b['value'][(b['parameter'].str.contains('W')) & (b['parameter'].str.contains(variable[1]))])
+                b['value'][(b['parameter'].str.contains('W')) & (b['parameter'].str.contains(variable[1:len(variable)]))])
             wRandom = wRandom[0:len(data.loc[:, data.columns != 'Pred'].columns)]
 
             interceptRandom = np.array(b['value'][(b['parameter'].str.contains('w0')) &
-                                                  (b['parameter'].str.contains(variable[1]))])
+                                                  (b['parameter'].str.contains(variable[1:variable.find('_') - 1]))])
 
             # Costruiamo ogni singolo Nodo usando i dati random e una funzione non lineare reLu
 
@@ -153,7 +165,7 @@ class Regression:
             wRandom = wRandom[0:len(data.loc[:, data.columns != 'Pred'].columns)]
 
             interceptRandom = np.array(b['value'][(b['parameter'].str.contains('w0')) &
-                                                  (b['parameter'].str.contains(variable[2]))])
+                                                  (b['parameter'].str.contains(variable[variable.find('_') - 1 : variable.find('_')]))])
 
 
             singleFunction = (interceptRandom[0] + (wRandom * data.loc[:, data.columns != 'Pred']))
@@ -163,29 +175,50 @@ class Regression:
             return (np.array(reLuFunction)).flatten().mean()
 
         if (variable[0] == 'W'):
-            wRandom = np.array(
-                b['value'][(b['parameter'].str.contains('W')) & (b['parameter'].str.contains(variable[1]))])
-            wRandom = wRandom[0:len(data.loc[:, data.columns != 'Pred'].columns)]
 
-            interceptRandom = np.array(b['value'][(b['parameter'].str.contains('w0')) &
-                                                  (b['parameter'].str.contains(variable[1]))])
+            layerNumber = max((int(variable[variable.find('_') + 1: len(variable)]) - 1), 1)
 
-            singleFunction = (interceptRandom[0] + (wRandom * data.loc[:, data.columns != 'Pred']))
-            toReturn = data.loc[:, data.columns != 'Pred']
-            reLuFunction = pd.DataFrame(np.where(singleFunction > 0, toReturn, 0)).set_axis(
-                data.loc[:, data.columns != 'Pred'].columns, axis=1)
+            if layerNumber == 1:
 
-            return (np.array(reLuFunction)).flatten().mean()
+                wRandom = np.array(b['value'][(b['parameter'].str.contains('W')) &
+                                              (b['parameter'].str.contains(variable[1:variable.find('_') - 1]))])
+                wRandom = wRandom[0:len(data.loc[:, data.columns != 'Pred'].columns)]
+
+                interceptRandom = np.array(b['value'][(b['parameter'].str.contains('w0')) &
+                                                      (b['parameter'].str.contains(
+                                                          variable[1:variable.find('_') - 1]))])
+
+                singleFunction = (interceptRandom[0] + (wRandom * data.loc[:, data.columns != 'Pred']))
+                toReturn = data.loc[:, data.columns != 'Pred']
+                reLuFunction = pd.DataFrame(np.where(singleFunction > 0, toReturn, 0)).set_axis(
+                    data.loc[:, data.columns != 'Pred'].columns, axis=1)
+
+                return (np.array(reLuFunction)).flatten().mean()
+
+            if layerNumber > 1:
+
+                # Filtra per il Layer precedente
+
+                b = b[b['parameter'].str.contains('_' + str(layerNumber))]
+
+                wRandom = np.array(
+                    b['value'][(b['parameter'].str.contains('W')) & (b['parameter'].str.contains(variable[1:variable.find('_') - 1]))])
+                wRandom = wRandom[0:len(data.loc[:, data.columns != 'Pred'].columns)]
+
+                interceptRandom = np.array(b['value'][(b['parameter'].str.contains('w0')) &
+                                                      (b['parameter'].str.contains(variable[1:variable.find('_') - 1]))])
+
+                singleFunction = (interceptRandom[0] + (wRandom * data.loc[:, data.columns != 'Pred']))
+                reLuFunction = pd.DataFrame(np.where(singleFunction > 0, singleFunction, 0)).set_axis(
+                    data.loc[:, data.columns != 'Pred'].columns, axis=1)
+
+                return (np.array(reLuFunction)).flatten().mean()
 
 
     def fit(self, data, dependent, leaningRate, decreasingRate=0.99, analytics=False):
 
         import pandas as pd
         import matplotlib.pyplot as plt
-
-        nodes = self.shape
-        layers = len(self.shape)
-        inputL = self.inputLayer
 
         leaningRate = leaningRate
 
@@ -208,7 +241,7 @@ class Regression:
 
             gradient = list()
             for param in range(len(weights['parameter'])):
-                gr = self.computeGradient(weights['parameter'][param], data, layers, nodes)
+                gr = self.computeGradient(weights['parameter'][param], data)
                 gradient.append(gr)
                 moveGr = -(gr * leaningRate)
                 w_old = weights['value']
