@@ -61,12 +61,12 @@ class Regression:
         lastLayerLength = numberOfNodes[len(numberOfNodes) - 1]
         beta = beta[len(beta) - lastLayerLength: len(beta)]
 
-        wRandom = pd.concat([pd.Series(weights), pd.Series(np.abs(np.random.normal(loc = 0.5, scale = 0.01, size=len(weights))))],
+        wRandom = pd.concat([pd.Series(weights), pd.Series(np.abs(np.random.normal(loc = 0.3, scale = 0.01, size=len(weights))))],
                             axis=1).set_axis(['parameter', 'value'], axis=1)
-        interceptRandom = pd.concat([pd.Series(interceptsW), pd.Series(np.abs(np.random.normal(loc = 0.5, scale = 0.01,
+        interceptRandom = pd.concat([pd.Series(interceptsW), pd.Series(np.abs(np.random.normal(loc = 0.3, scale = 0.01,
                                                                                                size=len(interceptsW))))],
                                     axis=1).set_axis(['parameter', 'value'], axis=1)
-        betaRandom = pd.concat([pd.Series(beta), pd.Series(np.abs(np.random.normal(loc = 0.5, scale = 0.01, size=len(beta))))],
+        betaRandom = pd.concat([pd.Series(beta), pd.Series(np.abs(np.random.normal(loc = 0.3, scale = 0.01, size=len(beta))))],
                                axis=1).set_axis(['parameter', 'value'], axis=1)
         functionIntRandom = pd.concat([pd.Series(neuralIntercept), pd.Series(random.random() * random.choice([-1, 1]))],
                                       axis=1).set_axis(['parameter', 'value'], axis=1)
@@ -353,3 +353,82 @@ class Regression:
         equationResult = equationResult.transpose().sum().transpose()
 
         return equationResult
+
+
+class Classification:
+    name = "NN From Scratch - Classification"
+
+    def __init__(self, inputLayer, shape, classes):
+        self.shape = shape
+        self.inputLayer = inputLayer
+        self.classes = classes
+        pass
+
+    # Metodo per ottenere la struttura della Rete Neurale per un problema di regressione
+
+    def structure (self):
+
+        import pandas as pd
+        import numpy as np
+        import random
+
+        numberOfNodes = self.shape
+        numberOfLayers = len(numberOfNodes)
+
+        # Costruiamo i pesi
+
+        weights = list()
+        beta = list()
+        interceptsW = list()
+        neuralIntercept = ['B0']
+        for layer in range(1, numberOfLayers + 1):
+
+            # Inizializza ogni layer con la relativa lunghezza
+            # Definiamo le operazioni da svolgere nel singolo nodo
+
+            for node in range(1, numberOfNodes[layer - 1] + 1):
+
+                b = 'B' + str(node)
+                w0 = 'w0' + str(node) + '_' + str(layer)
+
+                beta.append(b)
+                interceptsW.append(w0)
+
+                for parameter in range(1, self.inputLayer):
+                    w = 'W' + str(node) + str(parameter) + '_' + str(layer)
+
+                    weights.append(w)
+
+                    # All'interno di ogni singolo nodo, infatti, c'è l'equazione di una regressione lineare, che
+                    # Definiamo come Ak
+
+        # Ora bisogna creare artificialmente i nodi responsabili della classificazione, che è indipendente dal layer
+
+        finalClassificationNodes = list()
+        for node in range(0, numberOfNodes[len(numberOfNodes) - 1]):
+
+            for classNode in range(0, self.classes):
+                finalClassificationNodes.append('Class' + str(node) + str(classNode))
+
+        # Ora calcoliamo l'intercetta per la classificazione
+
+        classIntercept = list()
+        for classNumber in range(0, self.classes):
+            classIntercept.append('Class0' + str(classNumber))
+
+        wRandom = pd.concat([pd.Series(weights), pd.Series(np.random.uniform(size=len(weights)))],
+                            axis=1).set_axis(['parameter', 'value'], axis=1)
+
+        interceptRandom = pd.concat([pd.Series(interceptsW), pd.Series(np.random.uniform(size=len(interceptsW)))],
+                                    axis=1).set_axis(['parameter', 'value'], axis=1)
+
+        finalClassificationNodes = pd.concat([pd.Series(finalClassificationNodes),
+                                              pd.Series(np.random.uniform(size=len(finalClassificationNodes)))],
+                                             axis=1).set_axis(['parameter', 'value'], axis=1)
+
+        classIntercept = pd.concat([pd.Series(classIntercept), pd.Series(np.random.uniform(size=len(classIntercept)))],
+                                   axis=1).set_axis(['parameter', 'value'], axis=1)
+
+
+        return pd.concat([wRandom, interceptRandom, classIntercept, finalClassificationNodes],
+                         axis=0)
