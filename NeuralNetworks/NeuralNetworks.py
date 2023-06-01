@@ -345,6 +345,8 @@ class Regression:
 
         lRControl = leaningRate
 
+        bestW = list()
+
         minimizationPath = list()
         weights = pV
         MSEBefore = ((self.getPredictions2(pV, data, dependent) - data[dependent]) ** 2).mean()
@@ -370,6 +372,8 @@ class Regression:
             minimizationPath.append(MSE)
 
             weights = w_new
+
+            bestW.append(weights)
 
             leaningRate = max((leaningRate * decreasingRate), lRControl*0.05)
 
@@ -401,7 +405,7 @@ class Regression:
 
             plt.show()
 
-        return weights
+        return bestW[len(bestW) - 2]
 
 
     def getPredictions2(self, parameterVector, data, dependent):
