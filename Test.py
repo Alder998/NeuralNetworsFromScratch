@@ -19,10 +19,10 @@ print('\n')
 
 # get Structure
 
-structure = [15, 10, 10]
+structure = [10, 15]
 
 NNt = NeuralNetworks.Regression(5, structure)
-NNFit = NNt.fit(trainSet, 'Pred', 0.005, decreasingRate = 0.99)
+NNFit = NNt.fit(trainSet, 'Pred', 0.05, decreasingRate = 0.99)
 
 prediction = NNt.getPredictions2(NNFit, testSet, 'Pred')
 
