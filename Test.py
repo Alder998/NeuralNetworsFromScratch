@@ -19,7 +19,7 @@ print('\n')
 
 # get Structure
 
-structure = [10]
+structure = [10, 5]
 
 NNt = NeuralNetworks.Regression(5, structure)
 NNFit = NNt.fit(trainSet, 'Pred', 0.02, decreasingRate = 0.99)
