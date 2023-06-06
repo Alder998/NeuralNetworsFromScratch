@@ -385,9 +385,6 @@ class Regression:
 
             trainingEpochs += 1
 
-        predictionF = pd.concat([self.getPredictions2(weights, data, 'Pred'),
-                                 self.getPredictions2(pV, data, 'Pred'), data['Pred']],
-                                axis=1).set_axis(['final Weights Prediction', 'Starting Weights', 'True Value'], axis=1)
         # print(predictionF)
 
         if analytics == True:
@@ -395,12 +392,6 @@ class Regression:
             plt.figure(figsize=(15, 5))
             plt.scatter(x=minimizationPath.index, y=minimizationPath)
             plt.title('Minimization Path (no Constraints)')
-            plt.axhline(minimizationPath.min(), color='black', linestyle='dashed')
-
-            plt.figure(figsize=(15, 5))
-            plt.plot((predictionF['final Weights Prediction'] - predictionF['True Value']).cumsum(), color='blue')
-            plt.plot((predictionF['Starting Weights'] - predictionF['True Value']).cumsum(), color='red')
-            plt.title('Trend')
             plt.axhline(minimizationPath.min(), color='black', linestyle='dashed')
 
             plt.show()
@@ -534,21 +525,32 @@ class Classification:
 
         import pandas as pd
         import numpy as np
+        import random
 
         numberOfNodes = self.shape
         numberOfLayers = len(numberOfNodes)
+
+        classes = self.classes
 
         # Costruiamo i pesi
 
         weights = list()
         beta = list()
         interceptsW = list()
+
         for layer in range(1, numberOfLayers + 1):
+
+            if layer == 1:
+                nodes = self.inputLayer - 1  # considera la colonna che devi prevedere
+            if layer != 1:
+                nodes = numberOfNodes[layer - 2]
 
             # Inizializza ogni layer con la relativa lunghezza
             # Definiamo le operazioni da svolgere nel singolo nodo
 
             for node in range(1, numberOfNodes[layer - 1] + 1):
+
+                # print(node)
 
                 b = 'B' + str(node)
                 w0 = 'w0' + str(node) + '_' + str(layer)
@@ -556,18 +558,17 @@ class Classification:
                 beta.append(b)
                 interceptsW.append(w0)
 
-                for parameter in range(1, self.inputLayer):
-                    w = 'W' + str(node) + str(parameter) + '_' + str(layer)
+                for parameter in range(1, nodes + 1):
+                    w = 'W' + str(node) + '.' + str(parameter) + '_' + str(layer)
+
+                    # print('Layer', layer, ', Node', node, ', Parameter', parameter)
 
                     weights.append(w)
-
-                    # All'interno di ogni singolo nodo, infatti, c'è l'equazione di una regressione lineare, che
-                    # Definiamo come Ak
 
         # Ora bisogna creare artificialmente i nodi responsabili della classificazione, che è indipendente dal layer
 
         finalClassificationNodes = list()
-        for classNode in range(0, self.classes):
+        for classNode in range(0, classes):
 
             for node in range(0, numberOfNodes[len(numberOfNodes) - 1]):
                 finalClassificationNodes.append('Class' + str(node) + '.' + str(classNode))
@@ -575,40 +576,58 @@ class Classification:
         # Ora calcoliamo l'intercetta per la classificazione
 
         classIntercept = list()
-        for classNumber in range(0, self.classes):
+        for classNumber in range(0, classes):
             classIntercept.append('class0' + str(classNumber))
 
-        wRandom = pd.concat([pd.Series(weights), pd.Series(np.random.uniform(size=len(weights)))],
+        # print('Total Number of Parameters to estimate:', len(beta) + len(interceptsW) + len(weights) + 1)
+        # print('\n')
+
+        # Correggi beta perchè prenda il SOLO ULTIMO LAYER
+
+        lastLayerLength = numberOfNodes[len(numberOfNodes) - 1]
+        beta = beta[len(beta) - lastLayerLength: len(beta)]
+
+        wRandom = pd.concat([pd.Series(weights), pd.Series(np.random.normal(loc=0.3, scale=0.01,
+                                                                            size=len(weights)))],
                             axis=1).set_axis(['parameter', 'value'], axis=1)
 
-        interceptRandom = pd.concat([pd.Series(interceptsW), pd.Series(np.random.uniform(size=len(interceptsW)))],
+        interceptRandom = pd.concat([pd.Series(interceptsW), pd.Series(np.random.normal(loc=0.3,
+                                                                                        scale=0.01,
+                                                                                        size=len(interceptsW)))],
                                     axis=1).set_axis(['parameter', 'value'], axis=1)
 
         finalClassificationNodes = pd.concat([pd.Series(finalClassificationNodes),
-                                              pd.Series(np.random.uniform(size=len(finalClassificationNodes)))],
+                                              pd.Series(np.random.normal(loc=0.3, scale=0.01,
+                                                                         size=len(finalClassificationNodes)))],
                                              axis=1).set_axis(['parameter', 'value'], axis=1)
 
-        classIntercept = pd.concat([pd.Series(classIntercept), pd.Series(np.random.uniform(size=len(classIntercept)))],
+        classIntercept = pd.concat([pd.Series(classIntercept), pd.Series(np.random.normal(loc=0.3,
+                                                                                          scale=0.01,
+                                                                                          size=len(classIntercept)))],
                                    axis=1).set_axis(['parameter', 'value'], axis=1)
 
+        # L'output va interpretato così:
+        # res[0] = Beta che vanno inseriti nella f(X) finale (numero nodi)
+        # res[1] = Intercette per ogni nodo (numero nodi)
+        # res[2] = pesi per ogni nodo (numero nodi x numero predictors)
+        # res[3] = intercetta della rete (un solo valore)
 
         return pd.concat([wRandom, interceptRandom, classIntercept, finalClassificationNodes],
                          axis=0)
-
 
     def getPredictionsC(self, parameterVector, data, dependent, return_prob=False):
 
         import pandas as pd
         import numpy as np
 
-        b = parameterVector
-        b = b.reset_index()
-        del [b['index']]
-
         classes = self.classes
 
         numberOfNodes = self.shape
         numberOfLayers = len(numberOfNodes)
+
+        b = parameterVector
+        b = b.reset_index()
+        del [b['index']]
 
         wRandomSt = (b[b['parameter'].str.contains('W')])
         classRandomSt = np.array(b['value'][b['parameter'].str.contains('Class')])
@@ -616,6 +635,8 @@ class Classification:
         interceptRandomSt = (b[b['parameter'].str.contains('w0')])
 
         classIntRandom = np.array(b['value'][(b['parameter'].str.contains('class0'))])
+
+        # print(b[(b['parameter'].str.contains('Class00')) & (~b['parameter'].str.contains('.'))])
 
         # Costruiamo ogni singolo Nodo usando i dati random e una funzione non lineare reLu
 
@@ -628,12 +649,17 @@ class Classification:
 
             wRandom = np.array(wRandomSt['value'][wRandomSt['parameter'].str.contains('_' + str(layerO))])
 
+            # print(wRandomSt[wRandomSt['parameter'].str.contains('_' + str(layerO))])
+
             interceptRandom = np.array(interceptRandomSt['value'][interceptRandomSt['parameter'].str.contains('_' +
-                                                                                                              str(layerO))])
+                                                                                            str(layerO))])
 
             nodeO = 0
             while nodeO < numberOfNodes[layerO - 1]:
 
+                # print(len(interceptRandom[nodeO]))
+
+                # print(interceptRandom[2])
 
                 if layerO == 1:
                     regrWeights = (wRandom[nodeO * (len(data.columns) - 1): nodeO * (len(data.columns) - 1) +
@@ -643,6 +669,8 @@ class Classification:
                     regrWeights = (wRandom[nodeO * numberOfNodes[layerO - 2]: nodeO * numberOfNodes[layerO - 2] +
                                                                               numberOfNodes[layerO - 2]])
 
+                #print(regrWeights)
+                #print(target)
 
                 # singleFunction è l'operazione che viene fatta in ogni nodo. Bisogna fare in modo che un DF con
                 # (numero di input) colonne diventi un DF con (nodi al primo layer) colonne. Per questo dobbiamo
@@ -684,6 +712,9 @@ class Classification:
 
         lastLastLayer = pd.concat([series for series in lastLastLayer], axis=1)
 
+        # print(lastLastLayer)
+
+        # lastNodeFunctionForClass = lastLastLayer.transpose().sum().transpose()
 
         classification = list()
         nClass = 0
@@ -692,9 +723,14 @@ class Classification:
             classWeights = classRandomSt[nClass * (len(lastLastLayer.columns)): nClass * (len(lastLastLayer.columns)) +
                                                                                 (len(lastLastLayer.columns))]
 
+            # print(classWeights)
+            # print(classIntRandom)
 
             classificationNode = list()
             for i, function in enumerate(range(0, len(lastLastLayer.columns))):
+                # print(classIntRandom[i])
+                # print(lastLastLayer[function])
+                # print(classWeights[i])
 
                 f = np.exp(classIntRandom[nClass] + (lastLastLayer[function] * classWeights[i]))
 
@@ -713,6 +749,7 @@ class Classification:
         # Costruiamo la softmax
 
         denominator = pd.concat([series for series in finalClass], axis=1)
+
         denominator = denominator.transpose().sum().transpose()
 
         softMax = list()
@@ -722,7 +759,6 @@ class Classification:
         softMax = pd.concat([function for function in softMax], axis=1).set_axis([np.arange(1, classes + 1)], axis=1)
 
         if return_prob == True:
-
             return softMax
 
         if return_prob == False:
@@ -1247,8 +1283,8 @@ class Classification:
             print('Training Epochs:', trainingEpochs)
             print('Learning Rate', leaningRate)
             print('\n')
-            print('MSE:', CE)
-            print('MSE before:', CEBefore)
+            print('Actual Cross-Entropy:', CE)
+            print('Cross-Entropy before:', CEBefore)
 
             trainingEpochs += 1
 
