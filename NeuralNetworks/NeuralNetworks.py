@@ -227,6 +227,108 @@ class Regression:
             return results
 
 
+    def derivativeChain(self, variable):
+
+        import pandas as pd
+        import numpy as np
+
+        numberOfNodes = self.shape
+        numberOfLayers = len(numberOfNodes)
+
+        pv = self.structure()
+
+        parameter = variable[variable.find('.') + 1:variable.find('_')]
+        layer = variable[variable.find('_') + 1: len(variable)]
+        node = variable[1: variable.find('.')]
+
+        # print('\n')
+        # print('Parameter:', parameter)
+        # print('Layer:', layer)
+        # print('Node:', node)
+
+        # Qui vediamo quanto la variabile che abbiamo in questione è "lontana" dall'ultimo layer
+
+        layerIndex = numberOfLayers - int(layer)
+
+        # print('Layer Index:', layerIndex)
+
+        # Ora selezioniamo i parametri w della catena
+
+        if layerIndex == 0:
+            # CASO: ultimo layer. In questa fattispecie la catena di gradienti è Beta(nodo della variabile) moltiplicato per quello
+            # che nella funzione gradiente hai chiamato "Result". quindi basta mettere il beta relativo al nodo
+
+            chainResult = pv['value'][pv['parameter'].str.contains('B' + node)]
+
+            return chainResult
+
+        if layerIndex == 1:
+            # CASO: penultimo layer. In questo caso il risultato è composto dal prodotto di due fattori: la somma dei beta,
+            # e la somma di n(numero di nodi al laer precedente a quello esaminato) pesi W del nodo precedente, che sono
+            # composti nel modo seguente: w(node for node in prLayer).p_l (p_l sono FISSI)
+
+            betaPart = pv['value'][(pv['parameter'].str.contains('B')) & (~pv['parameter'].str.contains('B0'))]
+
+            nodePart = pv['value'][(pv['parameter'].str.contains('W'))
+                                   & (pv['parameter'].str.contains(('_') + str(int(layer) + 1)))
+                                   & (pv['parameter'].str.contains('.' + parameter))]
+
+            # Applichiamo la reLu
+
+            betaPart = np.where(betaPart > 0, betaPart, 0)
+            nodePart = np.where(nodePart > 0, nodePart, 0)
+
+            # Mettiamo tutto insieme
+
+            chainResult = betaPart.sum() * nodePart.sum()
+
+            return chainResult
+
+        if layerIndex > 1:
+
+            # CASO: siamo distanti dalla funzione finale. in questo caso la struttura è diversa. Supponiamo di essere al due layer
+            # dalla fine (al primo, su tre layer). In questo caso specifico, avremo da calcolare, per il layer 2 la formula
+            # precedente, e per il layer 3 (e per i successivi in caso di più layer) la somma di tutti i layer dei nodi che si
+            # susseguono.
+
+            # Iniziamo copiando la procedura di prima
+
+            betaPart = pv['value'][(pv['parameter'].str.contains('B')) & (~pv['parameter'].str.contains('B0'))]
+
+            nodePart = pv['value'][(pv['parameter'].str.contains('W'))
+                                   & (pv['parameter'].str.contains(('_') + str(int(layer) + 1)))
+                                   & (pv['parameter'].str.contains('.' + parameter))]
+
+            # Applichiamo la reLu
+
+            betaPart = np.where(betaPart > 0, betaPart, 0)
+            nodePart = np.where(nodePart > 0, nodePart, 0)
+
+            startChain = betaPart.sum() * nodePart.sum()
+
+            # Ora filtriamo per tutti i layer che andranno presi in toto. Saranno tutti i layer successivi a layer + 1 (se si sta
+            # al layer 1, allora si partirà a prendere tutti i nodi dal layer 3 in avanti)
+
+            allLayerParts = list()
+            for value in np.arange(int(layer) + 2, numberOfLayers + 1):
+                # Filtra per tutti i layer singolarmente, e li somma
+
+                tLayer = pv['value'][(pv['parameter'].str.contains('_' + str(value))) &
+                                     (pv['parameter'].str.contains('W'))].sum()
+
+                allLayerParts.append(tLayer)
+
+            # Applichiamo la reLu
+
+            allLayerParts = pd.Series(allLayerParts)
+            allLayerParts = np.where(allLayerParts > 0, allLayerParts, 0)
+
+            allLayerParts = allLayerParts.prod()
+
+            resultChain = startChain * allLayerParts
+
+            return resultChain
+
     def computeGradient(self, variable, data, dependent):
 
         import numpy as np
@@ -315,6 +417,9 @@ class Regression:
 
                 result = np.where(firstLayer > 0, firstLayer, 0)  # La funzione è una reLu
 
+                chain = self.derivativeChain(variable)
+                result = chain * result
+
                 return (np.array(result)).flatten().mean()
 
             if layerNumber > 1:
@@ -326,6 +431,9 @@ class Regression:
                 PrLayer = PrLayer[(int(node))]  # La size è (size, 1)
 
                 result = np.where(PrLayer > 0, PrLayer, 0)  # La funzione è una reLu
+
+                chain = self.derivativeChain(variable)
+                result = chain * result
 
                 return (np.array(result)).flatten().mean()
 

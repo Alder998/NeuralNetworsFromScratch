@@ -26,7 +26,7 @@ for line in range(lines):
     X3.append(random.random() * random.choice([-0.5, 0.5]))
     X4.append(random.random() * random.choice([-3, 3]))
     X5.append(random.random() * random.choice([-23, 23]))
-    XR.append(random.choice(np.arange(1, classes)))
+    XR.append(random.choice(np.arange(1, classes + 1)))
 
 simulatedData = pd.concat([pd.Series(X1), pd.Series(X2), pd.Series(X3), pd.Series(X4),
                            pd.Series(X5), np.abs(pd.Series(XR))], axis=1).set_axis(columns,
@@ -46,6 +46,6 @@ print('\n')
 structure = [10, 5]
 
 NNt = NeuralNetworks.Classification(6, structure, classes)
-NNFit = NNt.fit(trainSet, 'Pred', 0.10, decreasingRate = 0.99)
+NNFit = NNt.fit(trainSet, 'Pred', 0.4, decreasingRate = 0.99)
 
 prediction = NNt.getPredictionsC(NNFit, testSet, 'Pred')
