@@ -258,7 +258,7 @@ class Regression:
             # CASO: ultimo layer. In questa fattispecie la catena di gradienti è Beta(nodo della variabile) moltiplicato per quello
             # che nella funzione gradiente hai chiamato "Result". quindi basta mettere il beta relativo al nodo
 
-            chainResult = pv['value'][pv['parameter'].str.contains('B' + node)]
+            chainResult = pv['value'][pv['parameter'] == ('B' + node)].sum()
 
             return chainResult
 
