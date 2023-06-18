@@ -237,97 +237,169 @@ class Regression:
 
         pv = self.structure()
 
-        parameter = variable[variable.find('.') + 1:variable.find('_')]
-        layer = variable[variable.find('_') + 1: len(variable)]
-        node = variable[1: variable.find('.')]
+        if variable[0] == 'W':
 
-        # print('\n')
-        # print('Parameter:', parameter)
-        # print('Layer:', layer)
-        # print('Node:', node)
+            parameter = variable[variable.find('.') + 1:variable.find('_')]
+            layer = variable[variable.find('_') + 1: len(variable)]
+            node = variable[1: variable.find('.')]
 
-        # Qui vediamo quanto la variabile che abbiamo in questione è "lontana" dall'ultimo layer
+            # Qui vediamo quanto la variabile che abbiamo in questione è "lontana" dall'ultimo layer
 
-        layerIndex = numberOfLayers - int(layer)
+            layerIndex = numberOfLayers - int(layer)
 
-        # print('Layer Index:', layerIndex)
+            # print('Layer Index:', layerIndex)
 
-        # Ora selezioniamo i parametri w della catena
+            # Ora selezioniamo i parametri w della catena
 
-        if layerIndex == 0:
-            # CASO: ultimo layer. In questa fattispecie la catena di gradienti è Beta(nodo della variabile) moltiplicato per quello
-            # che nella funzione gradiente hai chiamato "Result". quindi basta mettere il beta relativo al nodo
+            if layerIndex == 0:
+                # CASO: ultimo layer. In questa fattispecie la catena di gradienti è Beta(nodo della variabile) moltiplicato per quello
+                # che nella funzione gradiente hai chiamato "Result". quindi basta mettere il beta relativo al nodo
 
-            chainResult = pv['value'][pv['parameter'] == ('B' + node)].sum()
+                chainResult = pv['value'][pv['parameter'] == ('B' + node)].sum()
 
-            return chainResult
+                return chainResult
 
-        if layerIndex == 1:
-            # CASO: penultimo layer. In questo caso il risultato è composto dal prodotto di due fattori: la somma dei beta,
-            # e la somma di n(numero di nodi al laer precedente a quello esaminato) pesi W del nodo precedente, che sono
-            # composti nel modo seguente: w(node for node in prLayer).p_l (p_l sono FISSI)
+            if layerIndex == 1:
+                # CASO: penultimo layer. In questo caso il risultato è composto dal prodotto di due fattori: la somma dei beta,
+                # e la somma di n(numero di nodi al laer precedente a quello esaminato) pesi W del nodo precedente, che sono
+                # composti nel modo seguente: w(node for node in prLayer).p_l (p_l sono FISSI)
 
-            betaPart = pv['value'][(pv['parameter'].str.contains('B')) & (~pv['parameter'].str.contains('B0'))]
+                betaPart = pv['value'][(pv['parameter'].str.contains('B')) & (~pv['parameter'].str.contains('B0'))]
 
-            nodePart = pv['value'][(pv['parameter'].str.contains('W'))
-                                   & (pv['parameter'].str.contains(('_') + str(int(layer) + 1)))
-                                   & (pv['parameter'].str.contains('.' + parameter))]
+                nodePart = pv['value'][(pv['parameter'].str.contains('W'))
+                                       & (pv['parameter'].str.contains(('_') + str(int(layer) + 1)))
+                                       & (pv['parameter'].str.contains('.' + parameter))]
 
-            # Applichiamo la reLu
+                # Applichiamo la reLu
 
-            betaPart = np.where(betaPart > 0, betaPart, 0)
-            nodePart = np.where(nodePart > 0, nodePart, 0)
+                betaPart = np.where(betaPart > 0, betaPart, 0)
+                nodePart = np.where(nodePart > 0, nodePart, 0)
 
-            # Mettiamo tutto insieme
+                # Mettiamo tutto insieme
 
-            chainResult = betaPart.sum() * nodePart.sum()
+                chainResult = betaPart.sum() * nodePart.sum()
 
-            return chainResult
+                return chainResult
 
-        if layerIndex > 1:
+            if layerIndex > 1:
 
-            # CASO: siamo distanti dalla funzione finale. in questo caso la struttura è diversa. Supponiamo di essere al due layer
-            # dalla fine (al primo, su tre layer). In questo caso specifico, avremo da calcolare, per il layer 2 la formula
-            # precedente, e per il layer 3 (e per i successivi in caso di più layer) la somma di tutti i layer dei nodi che si
-            # susseguono.
+                # CASO: siamo distanti dalla funzione finale. in questo caso la struttura è diversa. Supponiamo di essere al due layer
+                # dalla fine (al primo, su tre layer). In questo caso specifico, avremo da calcolare, per il layer 2 la formula
+                # precedente, e per il layer 3 (e per i successivi in caso di più layer) la somma di tutti i layer dei nodi che si
+                # susseguono.
 
-            # Iniziamo copiando la procedura di prima
+                # Iniziamo copiando la procedura di prima
 
-            betaPart = pv['value'][(pv['parameter'].str.contains('B')) & (~pv['parameter'].str.contains('B0'))]
+                betaPart = pv['value'][(pv['parameter'].str.contains('B')) & (~pv['parameter'].str.contains('B0'))]
 
-            nodePart = pv['value'][(pv['parameter'].str.contains('W'))
-                                   & (pv['parameter'].str.contains(('_') + str(int(layer) + 1)))
-                                   & (pv['parameter'].str.contains('.' + parameter))]
+                nodePart = pv['value'][(pv['parameter'].str.contains('W'))
+                                       & (pv['parameter'].str.contains(('_') + str(int(layer) + 1)))
+                                       & (pv['parameter'].str.contains('.' + parameter))]
 
-            # Applichiamo la reLu
+                # Applichiamo la reLu
 
-            betaPart = np.where(betaPart > 0, betaPart, 0)
-            nodePart = np.where(nodePart > 0, nodePart, 0)
+                betaPart = np.where(betaPart > 0, betaPart, 0)
+                nodePart = np.where(nodePart > 0, nodePart, 0)
 
-            startChain = betaPart.sum() * nodePart.sum()
+                startChain = betaPart.sum() * nodePart.sum()
 
-            # Ora filtriamo per tutti i layer che andranno presi in toto. Saranno tutti i layer successivi a layer + 1 (se si sta
-            # al layer 1, allora si partirà a prendere tutti i nodi dal layer 3 in avanti)
+                # Ora filtriamo per tutti i layer che andranno presi in toto. Saranno tutti i layer successivi a layer + 1 (se si sta
+                # al layer 1, allora si partirà a prendere tutti i nodi dal layer 3 in avanti)
 
-            allLayerParts = list()
-            for value in np.arange(int(layer) + 2, numberOfLayers + 1):
-                # Filtra per tutti i layer singolarmente, e li somma
+                allLayerParts = list()
+                for value in np.arange(int(layer) + 2, numberOfLayers + 1):
+                    # Filtra per tutti i layer singolarmente, e li somma
 
-                tLayer = pv['value'][(pv['parameter'].str.contains('_' + str(value))) &
-                                     (pv['parameter'].str.contains('W'))].sum()
+                    tLayer = pv['value'][(pv['parameter'].str.contains('_' + str(value))) &
+                                         (pv['parameter'].str.contains('W'))].sum()
 
-                allLayerParts.append(tLayer)
+                    allLayerParts.append(tLayer)
 
-            # Applichiamo la reLu
+                # Applichiamo la reLu
 
-            allLayerParts = pd.Series(allLayerParts)
-            allLayerParts = np.where(allLayerParts > 0, allLayerParts, 0)
+                allLayerParts = pd.Series(allLayerParts)
+                allLayerParts = np.where(allLayerParts > 0, allLayerParts, 0)
 
-            allLayerParts = allLayerParts.prod()
+                allLayerParts = allLayerParts.prod()
 
-            resultChain = startChain * allLayerParts
+                resultChain = startChain * allLayerParts
 
-            return resultChain
+                return resultChain
+
+        if variable[0] == 'w':
+
+            node = variable[2: variable.find('_')]
+            layer = variable[variable.find('_') + 1: len(variable)]
+
+            layerIndex = numberOfLayers - int(layer)
+
+            if layerIndex == 0:
+
+                chainResult = pv['value'][pv['parameter'] == ('B' + node)].sum()
+
+                return chainResult
+
+            if layerIndex == 1:
+
+                betaPart = pv['value'][(pv['parameter'].str.contains('B')) & (~pv['parameter'].str.contains('B0'))]
+
+                # Trova il numero di nodi al layer successivo, e crea un array di 1 di quella lunghezza
+
+                sNode = numberOfNodes[int(layer)]
+                nodePart = pd.Series(np.full(sNode, 1))
+
+                # Applichiamo la reLu
+
+                betaPart = np.where(betaPart > 0, betaPart, 0)
+                nodePart = np.where(nodePart > 0, nodePart, 0)
+
+                # Mettiamo tutto insieme
+
+                chainResult = betaPart.sum() * nodePart.sum()
+
+                return chainResult
+
+            if layerIndex > 1:
+
+                betaPart = pv['value'][(pv['parameter'].str.contains('B')) & (~pv['parameter'].str.contains('B0'))]
+
+                # Trova il numero di nodi al layer successivo, e crea un array di 1 di quella lunghezza
+
+                sNode = numberOfNodes[int(layer)]
+                nodePart = pd.Series(np.full(sNode, 1))
+
+                # Applichiamo la reLu
+
+                betaPart = np.where(betaPart > 0, betaPart, 0)
+                nodePart = np.where(nodePart > 0, nodePart, 0)
+
+                # Mettiamo tutto insieme
+
+                startChain = betaPart.sum() * nodePart.sum()
+
+                # Ora filtriamo per tutti i layer che andranno presi in toto. Saranno tutti i layer successivi a layer + 1 (se si sta
+                # al layer 1, allora si partirà a prendere tutti i nodi dal layer 3 in avanti)
+
+                allLayerParts = list()
+                for value in np.arange(int(layer) + 2, numberOfLayers + 1):
+                    # Filtra per tutti i layer singolarmente, e li somma
+
+                    tLayer = pv['value'][(pv['parameter'].str.contains('_' + str(value))) &
+                                         (pv['parameter'].str.contains('W'))].sum()
+
+                    allLayerParts.append(tLayer)
+
+                # Applichiamo la reLu
+
+                allLayerParts = pd.Series(allLayerParts)
+                allLayerParts = np.where(allLayerParts > 0, allLayerParts, 0)
+
+                allLayerParts = allLayerParts.prod()
+
+                resultChain = startChain * allLayerParts
+
+                return resultChain
+
 
     def computeGradient(self, variable, data, dependent):
 
