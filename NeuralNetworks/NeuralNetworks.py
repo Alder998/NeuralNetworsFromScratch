@@ -67,12 +67,12 @@ class Regression:
         lastLayerLength = numberOfNodes[len(numberOfNodes) - 1]
         beta = beta[len(beta) - lastLayerLength: len(beta)]
 
-        wRandom = pd.concat([pd.Series(weights), pd.Series(np.abs(np.random.normal(loc = 0.3, scale = 0.01, size=len(weights))))],
+        wRandom = pd.concat([pd.Series(weights), pd.Series(np.abs(np.random.normal(loc = 0.5, scale = 0.01, size=len(weights))))],
                             axis=1).set_axis(['parameter', 'value'], axis=1)
-        interceptRandom = pd.concat([pd.Series(interceptsW), pd.Series(np.abs(np.random.normal(loc = 0.3, scale = 0.01,
+        interceptRandom = pd.concat([pd.Series(interceptsW), pd.Series(np.abs(np.random.normal(loc = 0.5, scale = 0.01,
                                                                                                size=len(interceptsW))))],
                                     axis=1).set_axis(['parameter', 'value'], axis=1)
-        betaRandom = pd.concat([pd.Series(beta), pd.Series(np.abs(np.random.normal(loc = 0.3, scale = 0.01, size=len(beta))))],
+        betaRandom = pd.concat([pd.Series(beta), pd.Series(np.abs(np.random.normal(loc = 0.5, scale = 0.01, size=len(beta))))],
                                axis=1).set_axis(['parameter', 'value'], axis=1)
         functionIntRandom = pd.concat([pd.Series(neuralIntercept), pd.Series(random.random() * random.choice([-1, 1]))],
                                       axis=1).set_axis(['parameter', 'value'], axis=1)
