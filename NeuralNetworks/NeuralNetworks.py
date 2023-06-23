@@ -1192,6 +1192,193 @@ class Classification:
 
         return denominator
 
+    def chain1Class(self, data, dependent):
+
+        import pandas as pd
+        import numpy as np
+
+        parameterVector = self.structure()
+
+        p = self.getPredictionsC(parameterVector, data, dependent, return_prob=True)
+
+        p = (1 / p).transpose().sum().transpose().sum()
+
+        return p
+
+    def chain2Class(self, variable, data, dependent):
+
+        import pandas as pd
+        import numpy as np
+
+        classes = self.classes
+        parameterVector = self.structure()
+
+        parameter = variable[variable.find('.') + 1:variable.find('_')]
+        layer = variable[variable.find('_') + 1: len(variable)]
+        node = variable[1: variable.find('.')]
+
+        softmax = self.getSoftMaxComponent(parameterVector, data, dependent)
+
+        sumEzCom = softmax.transpose().sum().transpose().sum()
+
+        # isolo i parametri
+
+        sp = parameterVector[(parameterVector['parameter'].str.contains('Class')) &
+                             (parameterVector['parameter'].str.contains('.' + parameter))].reset_index()
+        del [sp['index']]
+
+        sumEzWeight = list()
+        for value in range(1, classes + 1):
+            vv = softmax[int(value)] * sp['value'][value - 1]
+            sumEzWeight.append(vv)
+
+        sumEzWeight = pd.concat([series for series in sumEzWeight], axis=1)
+        sumEzWeight = sumEzWeight.transpose().sum().transpose().sum()
+
+        spC = parameterVector[(parameterVector['parameter'].str.contains('Class' + node + '.'))].reset_index()
+        del [spC['index']]
+
+        functionChain = list()
+        for i, valueF in enumerate(spC['value']):
+            f = ((softmax[i + 1].sum()[i + 1] * valueF * sumEzCom) -
+                 (softmax[i + 1].sum()[i + 1] * sumEzWeight)) / ((sumEzCom) ** 2)
+            functionChain.append(f)
+
+        functionChain = pd.Series(functionChain).sum()
+
+        return functionChain
+
+    def chain2ClassP(self, data, dependent):
+
+        import pandas as pd
+        import numpy as np
+
+        classes = self.classes
+        parameterVector = self.structure()
+
+        softmax = self.getSoftMaxComponent(parameterVector, data, dependent)
+
+        sumEzCom = softmax.transpose().sum().transpose().sum()
+
+        # isolo i parametri
+
+        sp = parameterVector[(parameterVector['parameter'].str.contains('Class'))].reset_index()
+        del [sp['index']]
+
+        sumEzWeight = list()
+        for value in range(1, classes + 1):
+            vv = softmax[int(value)] * sp['value'][value - 1]
+            sumEzWeight.append(vv)
+
+        sumEzWeight = pd.concat([series for series in sumEzWeight], axis=1)
+        sumEzWeight = sumEzWeight.transpose().sum().transpose().sum()
+
+        spC = parameterVector[(parameterVector['parameter'].str.contains('Class' + node + '.'))].reset_index()
+        del [spC['index']]
+
+        functionChain = list()
+        for i, valueF in enumerate(spC['value']):
+            f = ((sumEzWeight * sumEzCom) -
+                 (softmax[i + 1].sum()[i + 1] * sumEzWeight)) / ((sumEzCom) ** 2)
+            functionChain.append(f)
+
+        functionChain = pd.Series(functionChain).sum()
+
+        return functionChain
+
+    # Funzioni Specifiche per w0
+
+    def chain1Class0(self, data, dependent):
+
+        import pandas as pd
+        import numpy as np
+
+        parameterVector = self.structure()
+
+        p = self.getPredictionsC(parameterVector, data, dependent, return_prob=True)
+
+        p = (1 / p).transpose().sum().transpose().sum()
+
+        return p
+
+    def chain2Class0(self, variable, data, dependent):
+
+        import pandas as pd
+        import numpy as np
+
+        classes = self.classes
+        parameterVector = self.structure()
+
+        parameter = variable[variable.find('.') + 1:variable.find('_')]
+        layer = variable[variable.find('_') + 1: len(variable)]
+        node = variable[1: variable.find('.')]
+
+        softmax = self.getSoftMaxComponent(parameterVector, data, dependent)
+
+        sumEzCom = softmax.transpose().sum().transpose().sum()
+
+        # isolo i parametri
+
+        sumEzWeight = list()
+        for value in range(1, classes + 1):
+            vv = softmax[int(value)] * 1
+            sumEzWeight.append(vv)
+
+        sumEzWeight = pd.concat([series for series in sumEzWeight], axis=1)
+        sumEzWeight = sumEzWeight.transpose().sum().transpose().sum()
+
+        spC = parameterVector[(parameterVector['parameter'].str.contains('Class' + node + '.'))].reset_index()
+        del [spC['index']]
+
+        functionChain = list()
+        for i, valueF in enumerate(spC['value']):
+            f = ((softmax[i + 1].sum()[i + 1] * 1 * sumEzCom) -
+                 (softmax[i + 1].sum()[i + 1] * sumEzWeight)) / ((sumEzCom) ** 2)
+            functionChain.append(f)
+
+        functionChain = pd.Series(functionChain).sum()
+
+        return functionChain
+
+    def chain2ClassP0(self, data, dependent):
+
+        import pandas as pd
+        import numpy as np
+
+        classes = self.classes
+        parameterVector = self.structure()
+        softmax = self.getSoftMaxComponent(parameterVector, data, dependent)
+
+        sumEzCom = softmax.transpose().sum().transpose().sum()
+
+        # isolo i parametri
+
+        sp = parameterVector[(parameterVector['parameter'].str.contains('Class'))].reset_index()
+        del [sp['index']]
+
+        sumEzWeight = list()
+        for value in range(1, classes + 1):
+            vv = softmax[int(value)] * 1
+            sumEzWeight.append(vv)
+
+        sumEzWeight = pd.concat([series for series in sumEzWeight], axis=1)
+        sumEzWeight = sumEzWeight.transpose().sum().transpose().sum()
+
+        spC = parameterVector[(parameterVector['parameter'].str.contains('Class' + node + '.'))].reset_index()
+        del [spC['index']]
+
+        functionChain = list()
+        for i, valueF in enumerate(spC['value']):
+            f = ((sumEzWeight * sumEzCom) -
+                 (softmax[i + 1].sum()[i + 1] * sumEzWeight)) / ((sumEzCom) ** 2)
+            functionChain.append(f)
+
+        functionChain = pd.Series(functionChain).sum()
+
+        return functionChain
+
+
+
     def derivativeChainC(self, variable):
 
         import pandas as pd
@@ -1364,7 +1551,6 @@ class Classification:
                 resultChain = startChain * allLayerParts
 
                 return resultChain
-
 
 
     def computeGradientC(self, variable, data, dependent):
