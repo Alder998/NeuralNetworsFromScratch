@@ -1205,48 +1205,65 @@ class Classification:
 
         return p
 
-    def chain2Class(self, variable, data, dependent):
+    def chain2Class(self, variable, parameterVector, data, dependent, numberOfLayers, numberOfNodes, classes):
 
         import pandas as pd
         import numpy as np
 
-        classes = self.classes
-        parameterVector = self.structure()
+        # Questa funzione è DEFINITA come uno dei principali BUILDING BLOCKS della backprop per una rete di classificazione.
+        # Infatti una volta creata per una classe possiamo iterarla per classe e per nodi al layer precedente a quelli di
+        # classificazione.
+
+        # Tiriamo fuori tutti gli indicatori dalla variabile che abbiamo definito (di che nodo, parametro, layer si tratta)
 
         parameter = variable[variable.find('.') + 1:variable.find('_')]
         layer = variable[variable.find('_') + 1: len(variable)]
         node = variable[1: variable.find('.')]
 
-        softmax = self.getSoftMaxComponent(parameterVector, data, dependent)
+        # Calcoliamo gli e^Zc (c = 1, 2, ..., classes)
+        # Da ricordare che la funzione getSoftMaxComponent ritorna un dataFrame dove ogni colonna corrisponde ad una classe
+        # con il suo relativo elemento e^Z all'interno
 
-        sumEzCom = softmax.transpose().sum().transpose().sum()
+        softmax = self.self.getSoftMaxComponent(parameterVector, data, dependent)
 
-        # isolo i parametri
+        # il mostro di funzione da calcolare (e iterare successivamente) è definito come:
+        # NUMERATORE ==> [ e^Zc * class(cn) * SOMMA_c(e^Zc) ] - [e^Zc * SOMMA_c(e^Zc * class(cn))]
+        # DENOMINATORE ==> [ SOMMA_c(e^Zc) ]^2
+        # dove c è il numero della classe, e n è il numero del nodo della variabile
 
-        sp = parameterVector[(parameterVector['parameter'].str.contains('Class')) &
-                             (parameterVector['parameter'].str.contains('.' + parameter))].reset_index()
-        del [sp['index']]
+        # Sviluppiamo tutto pezzo per pezzo: partiamo da SOMMA_c(e^Zc), che serve sia al numeratore che al denominatore
 
-        sumEzWeight = list()
-        for value in range(1, classes + 1):
-            vv = softmax[int(value)] * sp['value'][value - 1]
-            sumEzWeight.append(vv)
+        sumEZ = softmax.transpose().sum().transpose().sum()  # Traspongo per fare la somma a livello di classe
 
-        sumEzWeight = pd.concat([series for series in sumEzWeight], axis=1)
-        sumEzWeight = sumEzWeight.transpose().sum().transpose().sum()
+        # Adesso sviluppiamo SOMMA_c(e^Zc * class(cn)). Per proprietà della somma e del prodotto possiamo scomporre il
+        # tutto in SOMMA_c(e^Zc) * SOMMA_c(class(cn)). Una die queste due parti la abbiamo già, ed è la somma che abbiamo
+        # fatto prima, quindi non ci resta che calcolare SOMMA_c(class(cn))
 
-        spC = parameterVector[(parameterVector['parameter'].str.contains('Class' + node + '.'))].reset_index()
-        del [spC['index']]
+        # per farlo andiamo ad isolare i parametri con le seguenti condizioni:
+        # - che contengano "Class" (quelli della softMax)
+        # - che abbiano come nodo il nodo relativo a quello della nostra variabile W di cui stiamo facendo il gradiente
 
-        functionChain = list()
-        for i, valueF in enumerate(spC['value']):
-            f = ((softmax[i + 1].sum()[i + 1] * valueF * sumEzCom) -
-                 (softmax[i + 1].sum()[i + 1] * sumEzWeight)) / ((sumEzCom) ** 2)
-            functionChain.append(f)
+        sumParam_I = parameterVector['value'][(parameterVector['parameter'].str.contains('Class')) &
+                                              (parameterVector['parameter'].str.contains(
+                                                  'Class' + str(int(node) - 1) + '.'))]
+        sumParam_I1 = np.array(sumParam_I)
 
-        functionChain = pd.Series(functionChain).sum()
+        sumParam = sumParam_I.sum() * sumEZ
 
-        return functionChain
+        # Ora non resta che calcolare e^Zc e class(cn), o tutti i valori che siamo costretti ad iterare per classe, in quanto
+        # il numero della classe NON PUO' essere desumibile da una variabile W
+        # per tutti e due questi valori bisogna iterare sulla base delle classi
+
+        # Lo facciamo direttamente creando l'equazione finale
+
+        finalChain = list()
+        for value in range(0, classes):
+            f = (((softmax[value + 1].sum() * sumParam_I1[value]) * sumEZ) - (softmax[value + 1].sum() * sumParam)) / (
+                        sumEZ ** 2)
+            finalChain.append(f)
+
+        return pd.Series(finalChain).sum()
+
 
     def chain2ClassP(self, data, dependent):
 
