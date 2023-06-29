@@ -1258,8 +1258,8 @@ class Classification:
 
         finalChain = list()
         for value in range(0, classes):
-            f = (((softmax[value + 1].sum() * sumParam_I1[value]) * sumEZ) - (softmax[value + 1].sum() * sumParam)) / (
-                        sumEZ ** 2)
+            f = (((softmax[value + 1].sum()[value + 1] * sumParam_I1[value]) * sumEZ) - (
+                        softmax[value + 1].sum()[value + 1] * sumParam)) / (sumEZ ** 2)
             finalChain.append(f)
 
         return pd.Series(finalChain).sum()
