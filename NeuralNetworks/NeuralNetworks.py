@@ -1205,10 +1205,14 @@ class Classification:
 
         return p
 
-    def chain2Class(self, variable, parameterVector, data, dependent, numberOfLayers, numberOfNodes, classes):
+    def chain2Class(self, node, data, dependent):
 
         import pandas as pd
         import numpy as np
+
+        parameterVector = self.structure()
+
+        classes = self.classes
 
         # Questa funzione è DEFINITA come uno dei principali BUILDING BLOCKS della backprop per una rete di classificazione.
         # Infatti una volta creata per una classe possiamo iterarla per classe e per nodi al layer precedente a quelli di
@@ -1216,15 +1220,11 @@ class Classification:
 
         # Tiriamo fuori tutti gli indicatori dalla variabile che abbiamo definito (di che nodo, parametro, layer si tratta)
 
-        parameter = variable[variable.find('.') + 1:variable.find('_')]
-        layer = variable[variable.find('_') + 1: len(variable)]
-        node = variable[1: variable.find('.')]
-
         # Calcoliamo gli e^Zc (c = 1, 2, ..., classes)
         # Da ricordare che la funzione getSoftMaxComponent ritorna un dataFrame dove ogni colonna corrisponde ad una classe
         # con il suo relativo elemento e^Z all'interno
 
-        softmax = self.self.getSoftMaxComponent(parameterVector, data, dependent)
+        softmax = self.getSoftMaxComponent(parameterVector, data, dependent)
 
         # il mostro di funzione da calcolare (e iterare successivamente) è definito come:
         # NUMERATORE ==> [ e^Zc * class(cn) * SOMMA_c(e^Zc) ] - [e^Zc * SOMMA_c(e^Zc * class(cn))]
@@ -1268,143 +1268,42 @@ class Classification:
     def chain2ClassP(self, data, dependent):
 
         import pandas as pd
-        import numpy as np
-
-        classes = self.classes
-        parameterVector = self.structure()
-
-        softmax = self.getSoftMaxComponent(parameterVector, data, dependent)
-
-        sumEzCom = softmax.transpose().sum().transpose().sum()
-
-        # isolo i parametri
-
-        sp = parameterVector[(parameterVector['parameter'].str.contains('Class'))].reset_index()
-        del [sp['index']]
-
-        sumEzWeight = list()
-        for value in range(1, classes + 1):
-            vv = softmax[int(value)] * sp['value'][value - 1]
-            sumEzWeight.append(vv)
-
-        sumEzWeight = pd.concat([series for series in sumEzWeight], axis=1)
-        sumEzWeight = sumEzWeight.transpose().sum().transpose().sum()
-
-        spC = parameterVector[(parameterVector['parameter'].str.contains('Class' + node + '.'))].reset_index()
-        del [spC['index']]
-
-        functionChain = list()
-        for i, valueF in enumerate(spC['value']):
-            f = ((sumEzWeight * sumEzCom) -
-                 (softmax[i + 1].sum()[i + 1] * sumEzWeight)) / ((sumEzCom) ** 2)
-            functionChain.append(f)
-
-        functionChain = pd.Series(functionChain).sum()
-
-        return functionChain
-
-    # Funzioni Specifiche per w0
-
-    def chain1Class0(self, data, dependent):
-
-        import pandas as pd
-        import numpy as np
 
         parameterVector = self.structure()
-
-        p = self.getPredictionsC(parameterVector, data, dependent, return_prob=True)
-
-        p = (1 / p).transpose().sum().transpose().sum()
-
-        return p
-
-    def chain2Class0(self, variable, data, dependent):
-
-        import pandas as pd
-        import numpy as np
-
-        classes = self.classes
-        parameterVector = self.structure()
-
-        parameter = variable[variable.find('.') + 1:variable.find('_')]
-        layer = variable[variable.find('_') + 1: len(variable)]
-        node = variable[1: variable.find('.')]
-
-        softmax = self.getSoftMaxComponent(parameterVector, data, dependent)
-
-        sumEzCom = softmax.transpose().sum().transpose().sum()
-
-        # isolo i parametri
-
-        sumEzWeight = list()
-        for value in range(1, classes + 1):
-            vv = softmax[int(value)] * 1
-            sumEzWeight.append(vv)
-
-        sumEzWeight = pd.concat([series for series in sumEzWeight], axis=1)
-        sumEzWeight = sumEzWeight.transpose().sum().transpose().sum()
-
-        spC = parameterVector[(parameterVector['parameter'].str.contains('Class' + node + '.'))].reset_index()
-        del [spC['index']]
-
-        functionChain = list()
-        for i, valueF in enumerate(spC['value']):
-            f = ((softmax[i + 1].sum()[i + 1] * 1 * sumEzCom) -
-                 (softmax[i + 1].sum()[i + 1] * sumEzWeight)) / ((sumEzCom) ** 2)
-            functionChain.append(f)
-
-        functionChain = pd.Series(functionChain).sum()
-
-        return functionChain
-
-    def chain2ClassP0(self, data, dependent):
-
-        import pandas as pd
-        import numpy as np
-
-        classes = self.classes
-        parameterVector = self.structure()
-        softmax = self.getSoftMaxComponent(parameterVector, data, dependent)
-
-        sumEzCom = softmax.transpose().sum().transpose().sum()
-
-        # isolo i parametri
-
-        sp = parameterVector[(parameterVector['parameter'].str.contains('Class'))].reset_index()
-        del [sp['index']]
-
-        sumEzWeight = list()
-        for value in range(1, classes + 1):
-            vv = softmax[int(value)] * 1
-            sumEzWeight.append(vv)
-
-        sumEzWeight = pd.concat([series for series in sumEzWeight], axis=1)
-        sumEzWeight = sumEzWeight.transpose().sum().transpose().sum()
-
-        spC = parameterVector[(parameterVector['parameter'].str.contains('Class' + node + '.'))].reset_index()
-        del [spC['index']]
-
-        functionChain = list()
-        for i, valueF in enumerate(spC['value']):
-            f = ((sumEzWeight * sumEzCom) -
-                 (softmax[i + 1].sum()[i + 1] * sumEzWeight)) / ((sumEzCom) ** 2)
-            functionChain.append(f)
-
-        functionChain = pd.Series(functionChain).sum()
-
-        return functionChain
-
-
-
-    def derivativeChainC(self, variable):
-
-        import pandas as pd
-        import numpy as np
 
         numberOfNodes = self.shape
         numberOfLayers = len(numberOfNodes)
 
-        pv = self.structure()
+        # La musica cambia quando dobbiamo calcolare la catena ela variabile che cerchiamo non è all'ultimo layer, ma ad
+        # esempio si trova al penultimo (o ancora prima, perchè da allora non cambia più, essendo che prendiamo già qua
+        # tutti i pesi).
+
+        # In questo caso, la catena dell'ultimo nodo non va presa per SOLO UN NODO all'ultimo layer, ma per tutti i nodi
+        # all'interno dell'ultimo layer
+
+        lastLayerNuNo = numberOfNodes[numberOfLayers - 1]
+
+        # ricorda che i nodi partono da 1 e non da 0 come le classi
+
+        finalChain = list()
+        for node in range(1, lastLayerNuNo + 1):
+            cr = self.chain2Class(node, parameterVector, data, dependent)
+            finalChain.append(cr)
+
+        return pd.Series(finalChain).sum()
+
+
+    def derivativeChainC(self, variable, parameterVector, data, dependent, numberOfLayers, numberOfNodes, classes):
+
+        import pandas as pd
+        import numpy as np
+
+        pv = parameterVector
+
+        # print('\n')
+        # print('Parameter:', parameter)
+        # print('Layer:', layer)
+        # print('Node:', node)
 
         if variable[0] == 'W':
 
@@ -1424,7 +1323,24 @@ class Classification:
                 # CASO: ultimo layer. In questa fattispecie la catena di gradienti è Beta(nodo della variabile) moltiplicato per quello
                 # che nella funzione gradiente hai chiamato "Result". quindi basta mettere il beta relativo al nodo
 
-                chainResult = pv['value'][pv['parameter'] == ('B' + node)].sum()
+                nodePart = pv['value'][(pv['parameter'].str.contains('W'))
+                                       & (pv['parameter'].str.contains(('_') + str(int(layer) + 1)))
+                                       & (pv['parameter'].str.contains('.' + parameter))]
+
+                # Applichiamo la reLu
+
+                nodePart = np.where(nodePart > 0, nodePart, 0)
+
+                # Mettiamo tutto insieme
+
+                # Integriamo al risultato la parte relativa ai gradienti della classe
+
+                c1 = self.chain1Class(data, dependent)
+                c2 = self.chain2Class(node, data, dependent)
+
+                classPart = c1 * c2
+
+                chainResult = classPart * nodePart.sum()
 
                 return chainResult
 
@@ -1433,20 +1349,21 @@ class Classification:
                 # e la somma di n(numero di nodi al laer precedente a quello esaminato) pesi W del nodo precedente, che sono
                 # composti nel modo seguente: w(node for node in prLayer).p_l (p_l sono FISSI)
 
-                betaPart = pv['value'][(pv['parameter'].str.contains('B')) & (~pv['parameter'].str.contains('B0'))]
-
                 nodePart = pv['value'][(pv['parameter'].str.contains('W'))
                                        & (pv['parameter'].str.contains(('_') + str(int(layer) + 1)))
                                        & (pv['parameter'].str.contains('.' + parameter))]
 
                 # Applichiamo la reLu
 
-                betaPart = np.where(betaPart > 0, betaPart, 0)
                 nodePart = np.where(nodePart > 0, nodePart, 0)
 
                 # Mettiamo tutto insieme
 
-                chainResult = betaPart.sum() * nodePart.sum()
+                c1 = self.chain1Class(data, dependent)
+                c2 = self.chain2ClassP(data, dependent)
+                classPart = c1 * c2
+
+                chainResult = classPart * nodePart.sum()
 
                 return chainResult
 
@@ -1459,18 +1376,15 @@ class Classification:
 
                 # Iniziamo copiando la procedura di prima
 
-                betaPart = pv['value'][(pv['parameter'].str.contains('B')) & (~pv['parameter'].str.contains('B0'))]
-
                 nodePart = pv['value'][(pv['parameter'].str.contains('W'))
                                        & (pv['parameter'].str.contains(('_') + str(int(layer) + 1)))
                                        & (pv['parameter'].str.contains('.' + parameter))]
 
                 # Applichiamo la reLu
 
-                betaPart = np.where(betaPart > 0, betaPart, 0)
                 nodePart = np.where(nodePart > 0, nodePart, 0)
 
-                startChain = betaPart.sum() * nodePart.sum()
+                startChain = nodePart.sum()
 
                 # Ora filtriamo per tutti i layer che andranno presi in toto. Saranno tutti i layer successivi a layer + 1 (se si sta
                 # al layer 1, allora si partirà a prendere tutti i nodi dal layer 3 in avanti)
@@ -1493,79 +1407,11 @@ class Classification:
 
                 resultChain = startChain * allLayerParts
 
-                return resultChain
+                c1 = self.chain1Class(data, dependent)
+                c2 = self.chain2ClassP(data, dependent)
+                classPart = c1 * c2
 
-        if variable[0] == 'w':
-
-            node = variable[2: variable.find('_')]
-            layer = variable[variable.find('_') + 1: len(variable)]
-
-            layerIndex = numberOfLayers - int(layer)
-
-            if layerIndex == 0:
-
-                chainResult = pv['value'][pv['parameter'] == ('B' + node)].sum()
-
-                return chainResult
-
-            if layerIndex == 1:
-
-                betaPart = pv['value'][(pv['parameter'].str.contains('B')) & (~pv['parameter'].str.contains('B0'))]
-
-                # Trova il numero di nodi al layer successivo, e crea un array di 1 di quella lunghezza
-
-                sNode = numberOfNodes[int(layer)]
-                nodePart = pd.Series(np.full(sNode, 1))
-
-                # Applichiamo la reLu
-
-                betaPart = np.where(betaPart > 0, betaPart, 0)
-                nodePart = np.where(nodePart > 0, nodePart, 0)
-
-                # Mettiamo tutto insieme
-
-                chainResult = betaPart.sum() * nodePart.sum()
-
-                return chainResult
-
-            if layerIndex > 1:
-
-                betaPart = pv['value'][(pv['parameter'].str.contains('B')) & (~pv['parameter'].str.contains('B0'))]
-
-                # Trova il numero di nodi al layer successivo, e crea un array di 1 di quella lunghezza
-
-                sNode = numberOfNodes[int(layer)]
-                nodePart = pd.Series(np.full(sNode, 1))
-
-                # Applichiamo la reLu
-
-                betaPart = np.where(betaPart > 0, betaPart, 0)
-                nodePart = np.where(nodePart > 0, nodePart, 0)
-
-                # Mettiamo tutto insieme
-
-                startChain = betaPart.sum() * nodePart.sum()
-
-                # Ora filtriamo per tutti i layer che andranno presi in toto. Saranno tutti i layer successivi a layer + 1 (se si sta
-                # al layer 1, allora si partirà a prendere tutti i nodi dal layer 3 in avanti)
-
-                allLayerParts = list()
-                for value in np.arange(int(layer) + 2, numberOfLayers + 1):
-                    # Filtra per tutti i layer singolarmente, e li somma
-
-                    tLayer = pv['value'][(pv['parameter'].str.contains('_' + str(value))) &
-                                         (pv['parameter'].str.contains('W'))].sum()
-
-                    allLayerParts.append(tLayer)
-
-                # Applichiamo la reLu
-
-                allLayerParts = pd.Series(allLayerParts)
-                allLayerParts = np.where(allLayerParts > 0, allLayerParts, 0)
-
-                allLayerParts = allLayerParts.prod()
-
-                resultChain = startChain * allLayerParts
+                resultChain = resultChain * classPart
 
                 return resultChain
 
