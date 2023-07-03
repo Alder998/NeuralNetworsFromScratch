@@ -1287,7 +1287,7 @@ class Classification:
 
         finalChain = list()
         for node in range(1, lastLayerNuNo + 1):
-            cr = self.chain2Class(node, parameterVector, data, dependent)
+            cr = self.chain2Class(node, data, dependent)
             finalChain.append(cr)
 
         return pd.Series(finalChain).sum()
@@ -1517,87 +1517,110 @@ class Classification:
                 return (np.array(result)).flatten().mean()
 
         if variable[0] == 'c':
-            # Il gradiente della funzione in base alla variabile w0 del nodo di classificazione è una frazione con al
-            # numeratore la sommatoria di tutti gli e^Zm (ogni singola colonna che viene sputata fuori da
-            # getSoftMaxComponent), ESCLUSA la classe m, che è quella espressa dalla variabile stessa. Al denominatore
-            # invece abbiamo la somma di tutti i componenti della softmax alla seconda.
 
-            # Per prima cosa, Troviamo dalla variabile il numero della classe che stiamo esaminando
+            # Uguale a quella sopra, ma senza la presenza del nodo
+
+            # Il risultato di questa derivata dipende da se il valore di classEx (== la classe espressa dalla variabile che
+            # deriviamo) è o no uguale al valore di ognuna delle classi. La formula generalizzata è:
+            # [(e^Zc * Ap_last) * SUM_cl(e^Zcl)] - [e^Zc * Ap_last] / (SUM_cl(e^Zcl))^2   se classEx è uguale alla classe al
+            # numeratore (1)
+            # SUM_Cls(e^Zc * e^ZCls * Ap_last  / (SUM_cl(e^Zcl))^2) in caso contrario (2)
 
             classEx = int(variable[6:len(variable)]) + 1  # il nostro database è in base 0
 
-            # Ora possiamo trovare il numeratore
-
             softMax = self.getSoftMaxComponent(b, data, dependent)
 
-            # Escludiamo la variabile della classe
+            # Ora calcoliamo e^Zc, dove c è la classe espressa dal numeratore. la forma (1) prenderà valore SOLO quando
+            # ci sarà da esaminare la classe espressa dalla variabile
 
-            numerator1 = softMax.drop(softMax.columns[classEx - 1], axis=1)
+            eZc = softMax[int(classEx)].mean()
 
-            # Questa quantità va moltiplicata per e^Zm, quindi per l'esponenziale della colonna che rappreseta la classe
-            # Quindi, filtriamo per la colonna della classe, già che, essendo quetso il prodotto della softmax, l'
-            # esponenziale è gia stato calcolato
+            # ora non ci resta che calcolare SUM_cl(e^Zcl)
 
-            numerator2 = softMax[classEx].set_axis(['Y'], axis=1)
+            sumEZ = softMax.transpose().sum().transpose().mean()
 
-            # calcoliamo il valore del numeratore
-            # E' fatto in modo lento e stupido, ma non possiamo fare altrimenti, perchè pandas non può fare un semplice
-            # prodotto tra due colonne
+            # mettiamo insieme il tutto
 
-            numerator = (numerator1.T * numerator2['Y']).T
+            function1 = ((eZc[int(classEx)] * sumEZ) - (eZc[int(classEx)] ** 2)) / (sumEZ ** 2)
 
-            # calcoliamo il valore del denominatore: che è il valore della somma dei componenti della softmax alla seconda
+            # la parte rimanente è una su tutte le classi che non sono quella che è nella variabile
 
-            denominator = (softMax.transpose().sum().transpose()) ** 2
+            classArray = pd.Series(np.arange(0, classes))
+            classArray = classArray[classArray != int(classEx) - 1]
 
-            # Calcoliamo il gradiente
+            function2 = list()
+            for dclass in classArray:
+                f = (eZc * softMax[dclass + 1].mean()[dclass + 1]) / (sumEZ ** 2)
+                function2.append(f)
 
-            result = ((numerator.T) / denominator).T
+            # Crea la funzione finale
 
-            return (np.array(result)).flatten().mean()
+            function2 = np.array(function2).sum()
+
+            finalDer = function2 + function1
+
+            return finalDer
 
         if variable[0] == 'C':
+
             # Ricorda che i numeri PRIMA DEL PUNTO sono i coeffiecienti relativi ad Ak (singolo layer che va nella softmax)
             # Quelli DOPO IL PUNTO rappresentano la CLASSE
 
             # Iniziamo ad estrarre dalla variabile le info che ci servono
 
-            nodeEx = int(variable[5: variable.find('.')]) + 1
+            paramEx = int(variable[5: variable.find('.')]) + 1
             classEx = int(variable[variable.find('.') + 1: len(variable)]) + 1
 
-            # Il gradiente sulla base di ClassKM è uguale al gradiente in base a class0, ma il numeratore va MOLTIPLICATO
-            # per il nodo Ak. Quindi, il filtro va fatto anche in base al nodo. Prendiamo i dati che servono
-
-            layers = self.getAllLayerValuesC(b, data, dependent, return_nodes=True)
-
-            lastL = layers[len(layers) - 1]
-            nodeK = lastL[nodeEx].set_axis(['N'], axis=1)
-
-            # Ora possiamo procedere come abbiamo fatto prima, modificando il solo nomeratore moltiplicandolo per il nodo
+            # Prendiamo i dati che servono
 
             softMax = self.getSoftMaxComponent(b, data, dependent)
+            layers = self.getAllLayerValuesC(b, data, dependent, return_nodes=True)
 
-            numerator1 = softMax.drop(softMax.columns[classEx - 1], axis=1)
+            # Il risultato di questa derivata dipende da se il valore di classEx (== la classe espressa dalla variabile che
+            # deriviamo) è o no uguale al valore di ognuna delle classi. La formula generalizzata è:
+            # [(e^Zc * Ap_last) * SUM_cl(e^Zcl)] - [e^Zc * Ap_last] / (SUM_cl(e^Zcl))^2   se classEx è uguale alla classe al
+            # numeratore (1)
+            # SUM_Cls(e^Zc * e^ZCls * Ap_last  / (SUM_cl(e^Zcl))^2) in caso contrario (2)
 
-            numerator2 = softMax[classEx].set_axis(['Y'], axis=1)
+            # Essendo che il parametro cl è presente sia al NUMERATORE che al DENOMINATORE, ognuna delle derivate è la somma
+            # di 1 numero (1) e (numeroClassi - 1) numero (2). Cerchiamo di strutturarla in questo modo costruendo entrambe
+            # le relazioni. Dopodichè, tariamo la relazione (1) sulla nostra classe, e la (2) su tutte le altre.
 
-            # Moltiplichiamo il numeratore per il nodo relativo
+            # Costruiamo (1): partiamo dalla parte relativa al NODO
 
-            numerator2U = pd.DataFrame((numerator2['Y'].T * nodeK['N']).T).set_axis(['Nu'], axis=1)
+            Al = layers[len(layers) - 1][int(paramEx)].mean()  # Last layer preso al parametro di interesse
 
-            # Numeratore finale
+            # Ora calcoliamo e^Zc, dove c è la classe espressa dal numeratore. la forma (1) prenderà valore SOLO quando
+            # ci sarà da esaminare la classe espressa dalla variabile
 
-            numerator = (numerator1.T * numerator2U['Nu']).T
+            eZc = softMax[int(classEx)].mean()
 
-            # calcoliamo il valore del denominatore: che è il valore della somma dei componenti della softmax alla seconda
+            # ora non ci resta che calcolare SUM_cl(e^Zcl)
 
-            denominator = (softMax.transpose().sum().transpose()) ** 2
+            sumEZ = softMax.transpose().sum().transpose().mean()
 
-            # Calcoliamo il gradiente
+            # mettiamo insieme il tutto
 
-            result = ((numerator.T) / denominator).T
+            function1 = ((eZc[int(classEx)] * Al[int(paramEx)] * sumEZ) - (
+                        eZc[int(classEx)] ** 2 * Al[int(paramEx)])) / (sumEZ ** 2)
 
-            return (np.array(result)).flatten().mean()
+            # la parte rimanente è una su tutte le classi che non sono quella che è nella variabile
+
+            classArray = pd.Series(np.arange(0, classes))
+            classArray = classArray[classArray != int(classEx) - 1]
+
+            function2 = list()
+            for dclass in classArray:
+                f = (eZc * softMax[dclass + 1].mean()[dclass + 1] * Al[int(paramEx)]) / (sumEZ ** 2)
+                function2.append(f)
+
+            # Crea la funzione finale
+
+            function2 = np.array(function2).sum()
+
+            finalDer = function2 + function1
+
+            return finalDer
 
 
     def costFunction(self, parameterVector, data, dependent):

@@ -61,5 +61,3 @@ print('MSE Linear Regression', MSERegression)
 #print('R-Squared Linear Regression', round(LRScore*100, 2), '%')
 
 
-
-
