@@ -26,6 +26,8 @@ NNFit = NNt.fit(trainSet, 'Pred', 0.02, decreasingRate = 0.99)
 
 prediction = NNt.getPredictions2(NNFit, testSet, 'Pred')
 
+print(prediction)
+
 # Regressione Lineare
 
 X = np.array(trainSet[['X1', 'X2', 'X3', 'X4']])

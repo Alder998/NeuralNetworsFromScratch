@@ -1727,6 +1727,3 @@ class Classification:
 
         return bestW[len(bestW) - 2]
 
-
-
-
