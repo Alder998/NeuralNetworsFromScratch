@@ -510,7 +510,7 @@ class Regression:
                 return (np.array(result)).flatten().mean()
 
 
-    def fit(self, data, dependent, leaningRate, decreasingRate=0.99, analytics=False):
+    def fit(self, data, dependent, leaningRate, decreasingRate=0.99, max_iter = 20000, analytics=False):
 
         import pandas as pd
         import matplotlib.pyplot as plt
@@ -521,7 +521,6 @@ class Regression:
         del [pV['index']]
 
         trainingEpochs = 1
-        max_iter = 20000
 
         lRControl = leaningRate
 
