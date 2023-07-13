@@ -11,7 +11,7 @@ import random
 
 # dati simulati a questo giro
 
-classes = 9
+classes = 3
 
 # Generiamo dei dati Random
 
@@ -43,9 +43,9 @@ print('\n')
 
 # get Structure
 
-structure = [10, 5]
+structure = [10]
 
 NNt = NeuralNetworks.Classification(6, structure, classes)
-NNFit = NNt.fit(trainSet, 'Pred', 0.4, decreasingRate = 0.99)
+NNFit = NNt.fit(trainSet, 'Pred', 0.04, decreasingRate = 0.99)
 
 prediction = NNt.getPredictionsC(NNFit, testSet, 'Pred')

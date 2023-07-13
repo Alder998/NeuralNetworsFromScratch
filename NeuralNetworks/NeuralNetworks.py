@@ -1292,12 +1292,15 @@ class Classification:
         return pd.Series(finalChain).sum()
 
 
-    def derivativeChainC(self, variable, parameterVector, data, dependent, numberOfLayers, numberOfNodes, classes):
+    def derivativeChainC(self, variable, data, dependent):
 
         import pandas as pd
         import numpy as np
 
-        pv = parameterVector
+        numberOfNodes = self.shape
+        numberOfLayers = len(numberOfNodes)
+        classes = self.classes
+        pv = self.structure()
 
         # print('\n')
         # print('Parameter:', parameter)
@@ -1414,43 +1417,131 @@ class Classification:
 
                 return resultChain
 
+        if variable[0] == 'w':
+
+            # print('Layer Index:', layerIndex)
+
+            node = variable[2: variable.find('_')]
+            layer = variable[variable.find('_') + 1: len(variable)]
+
+            layerIndex = numberOfLayers - int(layer)
+
+            # Ora selezioniamo i parametri w della catena
+
+            if layerIndex == 0:
+                c1 = self.chain1Class(data, dependent)
+                c2 = self.chain2Class(node, data, dependent)
+
+                classPart = c1 * c2
+
+                chainResult = classPart
+
+                return chainResult
+
+            if layerIndex == 1:
+                # CASO: penultimo layer. In questo caso il risultato è composto dal prodotto di due fattori: la somma dei beta,
+                # e la somma di n(numero di nodi al laer precedente a quello esaminato) pesi W del nodo precedente, che sono
+                # composti nel modo seguente: w(node for node in prLayer).p_l (p_l sono FISSI)
+
+                # Trova il numero di nodi al layer successivo, e crea un array di 1 di quella lunghezza
+
+                sNode = numberOfNodes[int(layer)]
+                nodePart = pd.Series(np.full(sNode, 1))
+
+                # Applichiamo la reLu
+
+                nodePart = np.where(nodePart > 0, nodePart, 0)
+
+                # Mettiamo tutto insieme
+
+                c1 = self.chain1Class(data, dependent)
+                c2 = self.chain2ClassP(data, dependent)
+
+                classPart = c1 * c2
+
+                chainResult = classPart * nodePart.sum()
+
+                return chainResult
+
+            if layerIndex > 1:
+
+                # CASO: siamo distanti dalla funzione finale. in questo caso la struttura è diversa. Supponiamo di essere al due layer
+                # dalla fine (al primo, su tre layer). In questo caso specifico, avremo da calcolare, per il layer 2 la formula
+                # precedente, e per il layer 3 (e per i successivi in caso di più layer) la somma di tutti i layer dei nodi che si
+                # susseguono.
+
+                # Iniziamo copiando la procedura di prima
+
+                betaPart = pv['value'][(pv['parameter'].str.contains('B')) & (~pv['parameter'].str.contains('B0'))]
+
+                # Trova il numero di nodi al layer successivo, e crea un array di 1 di quella lunghezza
+
+                sNode = numberOfNodes[int(layer)]
+                nodePart = pd.Series(np.full(sNode, 1))
+
+                # Applichiamo la reLu
+
+                betaPart = np.where(betaPart > 0, betaPart, 0)
+                nodePart = np.where(nodePart > 0, nodePart, 0)
+
+                # Mettiamo tutto insieme
+
+                startChain = betaPart.sum() * nodePart.sum()
+
+                # Ora filtriamo per tutti i layer che andranno presi in toto. Saranno tutti i layer successivi a layer + 1 (se si sta
+                # al layer 1, allora si partirà a prendere tutti i nodi dal layer 3 in avanti)
+
+                allLayerParts = list()
+                for value in np.arange(int(layer) + 2, numberOfLayers + 1):
+                    # Filtra per tutti i layer singolarmente, e li somma
+
+                    tLayer = pv['value'][(pv['parameter'].str.contains('_' + str(value))) &
+                                         (pv['parameter'].str.contains('W'))].sum()
+
+                    allLayerParts.append(tLayer)
+
+                # Applichiamo la reLu
+
+                allLayerParts = pd.Series(allLayerParts)
+                allLayerParts = np.where(allLayerParts > 0, allLayerParts, 0)
+
+                allLayerParts = allLayerParts.prod()
+
+                resultChain = startChain * allLayerParts
+
+                c1 = self.chain1Class(data, dependent)
+                c2 = self.chain2ClassP(data, dependent)
+                classPart = c1 * c2
+
+                resultChain = resultChain * classPart
+
+                return resultChain
+
+        if variable[0] == 'c':
+            chainPart = self.chain1Class(data, dependent)
+
+            return chainPart
+
+        if variable[0] == 'C':
+            chainPart = self.chain1Class(data, dependent)
+
+            return chainPart
+
 
     def computeGradientC(self, variable, data, dependent):
 
         import pandas as pd
         import numpy as np
 
-        b = self.structure()
+        parameterVector = self.structure()
 
         numberOfNodes = self.shape
         numberOfLayers = len(numberOfNodes)
 
+        b = self.structure()
         classes = self.classes
 
-        if variable == 'B0':
-            # Single-Layer o Multi-Layer questo risultato non cambia
-
-            return 1
-
-        if (variable[0] == 'B') & (variable != 'B0'):
-            # Il gradiente in base Bk (== Beta nel nostro modello) risulta Ak (dove Ak è il nodo associato al beta
-            # di cui si vuole cacolare il gradiente). Se il parametro è B1, allora il gradiente sarà A1. Gli A che vanno presi
-            # sono SOLO quelli all'ultimo Layer (== Tutti i nodi dell'ultimo Layer). Per fare ciò, ci serve il valore
-            # della prediction all'ultimo layer. Dopo averla ottenuta, dobbiamo sapere distinguere per il valore che
-            # ci interessa.
-
-            # Quindi prendiamo l'ultimo layer
-
-            allLayers = self.getAllLayerValuesC(b, data, dependent, return_nodes=True)
-            lastLayer = allLayers[len(allLayers) - 1]
-
-            # Adesso ci serve prendere la colonna dell'ultimo layer corrispondente al nodo della nostra variabile beta
-
-            node = int(variable[1:len(variable)])
-
-            result = lastLayer[node]
-
-            return (np.array(result)).flatten().mean()
+        # b.to_excel(r"C:\Users\39328\OneDrive\Desktop\Davide\Velleità\NN.xlsx")
 
         if (variable[0] == 'w'):
             node = variable[1: variable.find('_')]
@@ -1466,7 +1557,10 @@ class Classification:
             # Prendiamo la variabile k (== il nodo che prendiamo dalla variabile)
             PrLayer = PrLayer[int(node)]  # La size è (size, 1)
 
-            result = np.where(PrLayer > 0, 1, 0)  # La funzione è una reLu
+            result = np.where(PrLayer > 0, np.exp(1) * (classes - 1), classes)  # La funzione è una reLu
+
+            chain = self.derivativeChainC(variable, data, dependent)
+            result = chain * result
 
             return (np.array(result)).flatten().mean()
 
@@ -1481,6 +1575,8 @@ class Classification:
             # Layer attuale, il numero di nodo e il numero di parametro
 
             layerNumber = int(variable[variable.find('_') + 1: len(variable)])
+
+            connectionPerNode = len(data.loc[:, data.columns != 'Pred'].columns)
 
             parameter = variable[variable.find('.') + 1:variable.find('_')]
             layer = variable[variable.find('_') + 1: len(variable)]
@@ -1499,7 +1595,10 @@ class Classification:
                 # Prendiamo la variabile k (== il nodo che prendiamo dalla variabile)
                 firstLayer = firstLayer[int(parameter)]  # La size è (size, 1)
 
-                result = np.where(firstLayer > 0, firstLayer, 0)  # La funzione è una reLu
+                result = np.where(firstLayer > 0, np.exp(firstLayer) * (classes - 1), classes)  # La funzione è una reLu
+
+                chain = self.derivativeChainC(variable, data, dependent)
+                result = chain * result
 
                 return (np.array(result)).flatten().mean()
 
@@ -1511,7 +1610,10 @@ class Classification:
 
                 PrLayer = PrLayer[(int(node))]  # La size è (size, 1)
 
-                result = np.where(PrLayer > 0, PrLayer, 0)  # La funzione è una reLu
+                result = np.where(PrLayer > 0, np.exp(PrLayer) * (classes - 1), classes)  # La funzione è una reLu
+
+                chain = self.derivativeChainC(variable, data, dependent)
+                result = chain * result
 
                 return (np.array(result)).flatten().mean()
 
@@ -1527,7 +1629,7 @@ class Classification:
 
             classEx = int(variable[6:len(variable)]) + 1  # il nostro database è in base 0
 
-            softMax = self.getSoftMaxComponent(b, data, dependent)
+            softMax = self.getSoftMaxComponent(parameterVector, data, dependent)
 
             # Ora calcoliamo e^Zc, dove c è la classe espressa dal numeratore. la forma (1) prenderà valore SOLO quando
             # ci sarà da esaminare la classe espressa dalla variabile
@@ -1572,8 +1674,8 @@ class Classification:
 
             # Prendiamo i dati che servono
 
-            softMax = self.getSoftMaxComponent(b, data, dependent)
-            layers = self.getAllLayerValuesC(b, data, dependent, return_nodes=True)
+            softMax = self.getSoftMaxComponent(parameterVector, data, dependent)
+            layers = self.getAllLayerValuesC(parameterVector, data, dependent, return_nodes=True)
 
             # Il risultato di questa derivata dipende da se il valore di classEx (== la classe espressa dalla variabile che
             # deriviamo) è o no uguale al valore di ognuna delle classi. La formula generalizzata è:
@@ -1622,107 +1724,306 @@ class Classification:
             return finalDer
 
 
-    def costFunction(self, parameterVector, data, dependent):
+    def costFunction(self, parameterVector, data, dependent, typeM = 'cross-entropy', return_df = False):
 
         import pandas as pd
         import numpy as np
 
+        # Dobbiamo creare un funzione cross-entropy. Abbiamo n prediction sotto forma di probabilità. Dobbiamo ora creare
+        # n colonne che prendono valore 1 qualora il valore sia nella classe n, e 0 altrimenti
+
         classes = self.classes
+
+        if typeM == 'cross-entropy':
+
+            oneHotData = pd.DataFrame(data[dependent]).set_axis(['O'], axis=1)
+
+            for singleClass in range(1, classes + 1):
+                oneHotData.loc[oneHotData['O'] == singleClass, singleClass] = 1
+                oneHotData[singleClass] = oneHotData[singleClass].fillna(0)
+
+            del [oneHotData['O']]
+
+            # Ora che abbiamo creato i nostri dati in one-hot, li dobbiamo inserire nella funzione generale. ma prima
+            # la funzione con le probabilità va log-trasformata
+
+            probData = self.getPredictionsC(parameterVector, data, dependent,
+                                       return_prob=True)
+
+            inside = list()
+            for c in range(1, classes + 1):
+                inside.append((np.log(probData[c]).T * oneHotData[c]).T)
+            inside = pd.concat([series for series in inside], axis=1)
+
+            if return_df == False:
+                total = inside.sum().sum()
+                crossEntropy = (-total) / len(oneHotData[1])
+
+            if return_df == True:
+                total = -inside
+                crossEntropy = total
+
+            return crossEntropy
+
+        if typeM == 'accuracy':
+            # Calcoliamo la accuratezza del modello: (osservazioni correttamente classificate / osservazioni totali) * 100
+
+            cp = self.getPredictionsC(parameterVector, data, dependent,
+                                 return_prob=False)
+
+            truePrediction = pd.DataFrame(data[dependent])
+            modelPrediction = cp
+
+            truePrediction.loc[truePrediction[dependent] == modelPrediction, 'OHAcc'] = 1
+
+            corrClass = len(truePrediction['OHAcc'].dropna())
+
+            modelAccuracy = (corrClass / len(truePrediction['Pred'])) * 100
+
+            return modelAccuracy
+
+
+    def fastCostFunction(self, data, predictionData, predictionDataClass, dependent, return_df=False, typeM='cross-entropy'):
+
+        import pandas as pd
+        import numpy as np
 
         # Dobbiamo creare un funzione cross-entropy. Abbiamo n prediction sotto forma di probabilità. Dobbiamo ora creare
         # n colonne che prendono valore 1 qualora il valore sia nella classe n, e 0 altrimenti
 
-        oneHotData = pd.DataFrame(data[dependent]).set_axis(['O'], axis=1)
+        classes = len(predictionData.columns)
 
-        for singleClass in range(1, classes + 1):
-            oneHotData.loc[oneHotData['O'] == singleClass, singleClass] = 1
-            oneHotData[singleClass] = oneHotData[singleClass].fillna(0)
+        if typeM == 'cross-entropy':
 
-        del [oneHotData['O']]
+            oneHotData = pd.DataFrame(data[dependent]).set_axis(['O'], axis=1)
 
-        # Ora che abbiamo creato i nostri dati in one-hot, li dobbiamo inserire nella funzione generale. ma prima
-        # la funzione con le probabilità va log-trasformata
+            for singleClass in range(1, classes + 1):
+                oneHotData.loc[oneHotData['O'] == singleClass, singleClass] = 1
+                oneHotData[singleClass] = oneHotData[singleClass].fillna(0)
 
-        probData = self.getPredictionsC(parameterVector, data, dependent, return_prob=True)
+            del [oneHotData['O']]
 
-        inside = list()
-        for c in range(1, classes + 1):
-            inside.append((np.log(probData[c]).T * oneHotData[c]).T)
-        inside = pd.concat([series for series in inside], axis=1)
+            # Ora che abbiamo creato i nostri dati in one-hot, li dobbiamo inserire nella funzione generale. ma prima
+            # la funzione con le probabilità va log-trasformata
 
-        total = inside.sum().sum()
+            probData = predictionData
 
-        crossEntropy = (-total) / len(oneHotData[1])
+            inside = list()
+            for c in range(1, classes + 1):
+                inside.append((np.log(probData[c]).T * oneHotData[c]).T)
+            inside = pd.concat([series for series in inside], axis=1)
 
-        return crossEntropy
+            if return_df == False:
+                total = inside.sum().sum()
+                crossEntropy = (-total) / len(oneHotData[1])
+
+            if return_df == True:
+                total = -inside
+                crossEntropy = total
+
+            return crossEntropy
+
+        if typeM == 'accuracy':
+            # Calcoliamo la accuratezza del modello: (osservazioni correttamente classificate / osservazioni totali) * 100
+
+            cp = predictionDataClass.reset_index()
+            del [cp['index']]
+
+            truePrediction = pd.DataFrame(data[dependent])  # .set_axis([dependent], axis = 1)
+            modelPrediction = pd.DataFrame(cp).set_axis(['Predicted'], axis=1)
+
+            truePrediction.loc[truePrediction[dependent] == modelPrediction['Predicted'], 'OHAcc'] = 1
+
+            corrClass = len(truePrediction['OHAcc'].dropna())
+
+            modelAccuracy = (corrClass / len(truePrediction[dependent])) * 100
+
+            return modelAccuracy
 
 
-    def fit(self, data, dependent, leaningRate, decreasingRate=0.99, analytics=False):
+    def fit(self, data, dependent, leaningRate, decreasingRate=0.99):
+
+        # ESPERIMENTO BATCH
+
+        # Dati random
 
         import pandas as pd
-        import matplotlib.pyplot as plt
+        import numpy as np
+        import random
+
+        classes = self.classes
+
+        # -----------------------------------------------TEST METODI--------------------------------------------
+
+        # Lo scopo è quello di dividere il database di training in n batch della stessa dimensione, e fare train in modo
+        # diverso per ciascun batch
+
+        # Struttura della rete
+
+        nodes = [9]
+        layers = len(nodes)
+
+        # Inizializza i parametri
+
+        pV = self.structure()
+        pV = pV.reset_index()
+        del[pV['index']]
+        weights = pV
+
+        batchData = list()
+        for diffClass in range(1, classes + 1):
+            batchData.append(data[data[dependent] == diffClass])
 
         leaningRate = leaningRate
 
-        pV = self.structure().reset_index()
-        del [pV['index']]
+        # Iteriamo per ogni database batch, dentro ad ogni epoca
+
+        # Liste per analytics
+
+        batchNumber = list()
+        accList = list()
+        CEList = list()
 
         trainingEpochs = 1
-        max_iter = 20000
+        max_iter = 15
+        while (trainingEpochs < max_iter):
 
-        lRControl = leaningRate
+            # print('TRAINING EPOCH:', trainingEpochs, 'MAX_Iter:', max_iter)
+            # clear_output(wait = True)
 
-        bestW = list()
+            costList = list()
+            accuracyList = list()
+            afterBatchData = list()
+            afterBatchDataC = list()
 
-        minimizationPath = list()
-        weights = pV
+            updatedWeights = list()
+            for num, batch in enumerate(batchData):
 
-        CEBefore = self.costFunction(pV, data, dependent)
+                minimizationPath = list()
+                minimizationPathAccuracy = list()
 
-        CE = 0
-        while (trainingEpochs < max_iter) & (CEBefore > CE):
+                # Al posto che l'MSE ci devi mettere la cross-entropy
 
-            CEBefore = self.costFunction(weights, data, dependent)
+                MSEBefore = self.costFunction(pV, batch, dependent, typeM='cross-entropy')
+                batch = batch.reset_index()
+                del [batch['index']]
 
-            gradient = list()
-            for param in range(len(weights['parameter'])):
-                gr = self.computeGradientC(weights['parameter'][param], data, dependent)
-                gradient.append(gr)
-                moveGr = -(gr * leaningRate)
-                w_old = weights['value']
-                w_new = pd.concat([weights['parameter'], w_old + moveGr], axis=1).set_axis(['parameter', 'value'],
-                                                                                           axis=1)
+                # print(len(batch))
 
-            CE = self.costFunction(w_new, data, dependent)
+                AccB = self.costFunction(pV, batch, dependent, typeM='accuracy')
 
-            # print(gradient)
+                trainingEpochs_batch = 1
+                max_iter_batch = 10
+                MSE = 0
 
-            minimizationPath.append(CE)
+                # Update dei Batch con i nuovi pesi
+                # eBatch = getPredictionsC(w_new, batch, dependent, layers, nodes, classes, return_prob = True)
+                # eBatchC = getPredictionsC(w_new, batch, dependent, layers, nodes, classes, return_prob = False)
 
-            weights = w_new
+                while (MSEBefore > MSE) & (trainingEpochs_batch < max_iter_batch):  # & (AccB < 100):
 
-            bestW.append(weights)
+                    batch = batch.reset_index()
+                    del [batch['index']]
 
-            leaningRate = max((leaningRate * decreasingRate), lRControl*0.05)
+                    MSEBefore = self.costFunction(weights, batch, dependent, typeM='cross-entropy')
+                    accuracyBefore = self.costFunction(weights, batch, dependent, typeM='accuracy')
 
-            print('Training Epochs:', trainingEpochs)
-            print('Learning Rate', leaningRate)
-            print('\n')
-            print('Actual Cross-Entropy:', CE)
-            print('Cross-Entropy before:', CEBefore)
+                    gradient = list()
+                    for param in range(len(weights['parameter'])):
+                        gr = self.computeGradientC(weights['parameter'][param], batch, dependent)
+
+                        gradient.append(gr)
+                        moveGr = -(gr * leaningRate)
+                        w_old = weights['value']
+                        w_new = pd.concat([weights['parameter'], w_old + moveGr], axis=1).set_axis(
+                            ['parameter', 'value'], axis=1)
+
+                    # Update della funzione di costo
+                    MSE = self.costFunction(w_new, batch, dependent, return_df=False,
+                                       typeM='cross-entropy')
+                    accuracy = self.costFunction(w_new, batch, dependent, typeM='accuracy')
+
+                    minimizationPathAccuracy.append(accuracy)
+                    minimizationPath.append(MSE)
+
+                    weights = w_new
+
+                    # Rimettiamo insieme tutti i batch
+
+                    eBatch = self.getPredictionsC(w_new, batch, dependent, return_prob=True)
+                    eBatchC = self.getPredictionsC(w_new, batch, dependent, return_prob=False)
+
+                    CEb = self.fastCostFunction(batch, eBatch, eBatchC, dependent,
+                                           typeM='cross-entropy')
+                    AccB = self.fastCostFunction(batch, eBatch, eBatchC, dependent,
+                                            typeM='accuracy')
+
+                    # print('\n')
+                    # print('TRAINING EPOCH:', trainingEpochs, '(MAX_Iter:', max_iter - 1, ')' ' TRAINING BATCH:', num + 1, '(out of:', classes, ')', ', Iteration:', trainingEpochs_batch)
+                    # print('Learning Rate:', leaningRate, 'CE:', CEb, ', Accuracy:', round(AccB, 2), '%')
+
+                    # Per database con analytics a livello di batch
+
+                    batchNumber.append(num + 1)
+                    accList.append(round(AccB, 2))
+                    CEList.append(CEb)
+
+                    # print('\n')
+                    # print(eBatch)
+
+                    trainingEpochs_batch += 1
+
+                    if (MSEBefore < MSE) | (AccB == 100) | (trainingEpochs_batch == (max_iter_batch)):
+                        updatedWeights.append(w_new)
+                        print('Weights Updated')
+
+                # Creo il DB finale con weights (Ultimi pesi ad uscire dal while)
+
+                everyBatch = self.getPredictionsC(updatedWeights[len(updatedWeights) - 1], batch, dependent, return_prob=True)
+                everyBatchC = self.getPredictionsC(updatedWeights[len(updatedWeights) - 1], batch, dependent, return_prob=False)
+                afterBatchData.append(everyBatch)
+                afterBatchDataC.append(everyBatchC)
+
+                # Livello delle analytics a livello di batch
+
+                analytics = pd.concat([pd.Series(batchNumber), pd.Series(CEList), pd.Series(accList)], axis=1).set_axis(
+                    ['Batch',
+                     'Cross-Entropy', 'Accuracy (%)'], axis=1)
+                # clear_output(wait = True)
+
+                analytics = analytics.drop_duplicates(subset='Batch', keep='last')
+                analytics = analytics.sort_values(by='Batch').reset_index()
+                del [analytics['index']]
+
+                print('TRAINING EPOCH:', trainingEpochs, ' - TRAINING BATCH:', num + 2, ' - Learning Rate:',
+                      leaningRate)
+                print(analytics)
+
+            if trainingEpochs == 1:
+                leaningRate = leaningRate * 0.1
+            if (trainingEpochs > 1) & (trainingEpochs <= 3):
+                leaningRate = leaningRate * 0.5
+            else:
+                leaningRate = leaningRate * decreasingRate
+
+            afterBatchData = pd.concat([df for df in afterBatchData], axis=0)
+            afterBatchData = afterBatchData.reset_index()
+            del [afterBatchData['index']]
+            afterBatchDataC = pd.concat([df for df in afterBatchDataC], axis=0)
+            afterBatchDataC = afterBatchDataC.reset_index()
+            del [afterBatchDataC['index']]
 
             trainingEpochs += 1
 
-        # print(predictionF)
+        AccFinal = self.costFunction(updatedWeights[len(updatedWeights) - 1], data, dependent,
+                                typeM='accuracy')
+        CEFinal = self.costFunction(updatedWeights[len(updatedWeights) - 1], data, dependent,
+                               typeM='cross-entropy')
 
-        if analytics == True:
-            minimizationPath = pd.Series(minimizationPath)
-            plt.figure(figsize=(15, 5))
-            plt.scatter(x=minimizationPath.index, y=minimizationPath)
-            plt.title('Minimization Path (no Constraints)')
-            plt.axhline(minimizationPath.min(), color='black', linestyle='dashed')
+        print('\n')
+        print('-----MODEL TRAINED------')
+        print('Final Cross-Entropy:', CEFinal)
+        print('Final Accuracy:', AccFinal)
 
-            plt.show()
-
-        return bestW[len(bestW) - 2]
+        return updatedWeights[len(updatedWeights) - 1]
 
