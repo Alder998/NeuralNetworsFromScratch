@@ -1841,7 +1841,7 @@ class Classification:
             return modelAccuracy
 
 
-    def fit(self, data, dependent, leaningRate, decreasingRate=0.99):
+    def fit(self, data, dependent, leaningRate, decreasingRate=0.99, max_iteration_epochs = 15, max_iteration_batch = 10):
 
         # ESPERIMENTO BATCH
 
@@ -1885,7 +1885,7 @@ class Classification:
         CEList = list()
 
         trainingEpochs = 1
-        max_iter = 15
+        max_iter = max_iteration_epochs
         while (trainingEpochs < max_iter):
 
             # print('TRAINING EPOCH:', trainingEpochs, 'MAX_Iter:', max_iter)
@@ -1899,9 +1899,6 @@ class Classification:
             updatedWeights = list()
             for num, batch in enumerate(batchData):
 
-                minimizationPath = list()
-                minimizationPathAccuracy = list()
-
                 # Al posto che l'MSE ci devi mettere la cross-entropy
 
                 MSEBefore = self.costFunction(pV, batch, dependent, typeM='cross-entropy')
@@ -1913,7 +1910,7 @@ class Classification:
                 AccB = self.costFunction(pV, batch, dependent, typeM='accuracy')
 
                 trainingEpochs_batch = 1
-                max_iter_batch = 10
+                max_iter_batch = max_iteration_batch
                 MSE = 0
 
                 # Update dei Batch con i nuovi pesi
@@ -1941,10 +1938,6 @@ class Classification:
                     # Update della funzione di costo
                     MSE = self.costFunction(w_new, batch, dependent, return_df=False,
                                        typeM='cross-entropy')
-                    accuracy = self.costFunction(w_new, batch, dependent, typeM='accuracy')
-
-                    minimizationPathAccuracy.append(accuracy)
-                    minimizationPath.append(MSE)
 
                     weights = w_new
 
