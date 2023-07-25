@@ -1778,7 +1778,7 @@ class Classification:
 
             corrClass = len(truePrediction['OHAcc'].dropna())
 
-            modelAccuracy = (corrClass / len(truePrediction['Pred'])) * 100
+            modelAccuracy = (corrClass / len(truePrediction[dependent])) * 100
 
             return modelAccuracy
 
@@ -1988,7 +1988,7 @@ class Classification:
                 analytics = analytics.sort_values(by='Batch').reset_index()
                 del [analytics['index']]
 
-                print('TRAINING EPOCH:', trainingEpochs, ' - TRAINING BATCH:', num + 2, ' - Learning Rate:',
+                print('TRAINING EPOCH:', trainingEpochs, ' - TRAINED BATCH:', num + 1, ' - Learning Rate:',
                       leaningRate)
                 print(analytics)
 
